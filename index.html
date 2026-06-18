@@ -10,7 +10,7 @@
 <helmet>
 <link rel="stylesheet" href="colors_and_type.css">
 <style>
-  html { margin:0; padding:0; background:#060a0e; }
+  html { margin:0; padding:0; background:#05080f; }
   html[data-theme="light"] { background:#F5F6F8; }
   body { margin:0; padding:0; }
   * { box-sizing: border-box; }
@@ -22,7 +22,7 @@
     --tm:rgba(245,245,255,.62); --tm2:rgba(245,245,255,.55); --tfaint:rgba(245,245,255,.46);
     --scroll:rgba(245,245,255,.16);
     --menu-bg:#0d141c; --menu-text:#e8ecf2; --trigger-text:#f5f5ff; --ddhover:rgba(0,120,206,.22);
-    --app-bg:radial-gradient(1000px 640px at 86% -4%, rgba(0,120,206,.17), transparent 58%), #060a0e;
+    --app-bg:radial-gradient(1100px 720px at 84% -10%, rgba(0,120,206,.24), transparent 60%), radial-gradient(820px 560px at 6% 8%, rgba(18,118,138,.13), transparent 55%), radial-gradient(1300px 1000px at 50% 116%, rgba(12,46,104,.34), transparent 62%), linear-gradient(180deg, #070c18 0%, #05080f 60%, #04060c 100%);
     --buy:var(--up-300); --sell:var(--down-500);
     --ticker-bg:rgba(8,12,18,.9); --icon-inv:brightness(0) invert(1);
   }
@@ -56,6 +56,19 @@
   @media (prefers-reduced-motion: reduce) {
     .nb-ticker { overflow-x: auto; }
     .nb-ticker-track { animation: none; }
+  }
+  .nb-flip { perspective: 1600px; }
+  .nb-flip-inner { position: relative; transform-style: preserve-3d; transition: transform .6s cubic-bezier(.2,.7,.2,1); }
+  .nb-flip-inner.flipped { transform: rotateY(180deg); }
+  .nb-face { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+  .nb-face-front { position: relative; min-height: 380px; }
+  .nb-face-back { position: absolute; inset: 0; transform: rotateY(180deg); overflow: auto; }
+  @media (prefers-reduced-motion: reduce) {
+    .nb-flip-inner, .nb-flip-inner.flipped { transform: none; transition: none; }
+    .nb-face-back { transform: none; opacity: 0; transition: opacity .15s linear; }
+    .nb-face-front { transition: opacity .15s linear; }
+    .nb-flip-inner.flipped .nb-face-front { opacity: 0; pointer-events: none; }
+    .nb-flip-inner.flipped .nb-face-back { opacity: 1; }
   }
 </style>
 <script src="marketData.js"></script>
@@ -340,12 +353,20 @@
       <!-- ===== RESULT (right) ===== -->
       <aside style="flex:1 1 340px; min-width:300px; max-width:400px; position:sticky; top:16px; display:flex; flex-direction:column; gap:14px;">
 
-        <!-- Combined result — single card with hairline dividers -->
-        <section style="background:linear-gradient(180deg, rgba(0,120,206,.12), var(--card)); border:1px solid rgba(120,201,255,.20); border-radius:16px; box-shadow:var(--elev-2); overflow:hidden; display:flex; flex-direction:column;">
+        <!-- Margin / Payoff flip card -->
+        <div class="nb-flip" style="position:relative;">
+          <div role="group" aria-label="Switch between margin and payoff view" style="position:absolute; top:10px; right:10px; z-index:6; display:inline-flex; background:var(--chip); border:1px solid var(--bd); border-radius:999px; padding:2px; gap:1px; box-shadow:0 2px 8px rgba(0,0,0,.18);">
+            <button onClick="{{ onFlipMargin }}" aria-pressed="{{ marginPressed }}" title="Show margin" style="{{ marginSegStyle }}" style-focus="outline:2px solid var(--nubra-blue-200); outline-offset:2px;">Margin</button>
+            <button onClick="{{ onFlipPayoff }}" aria-pressed="{{ payoffPressed }}" title="Show payoff" style="{{ payoffSegStyle }}" style-focus="outline:2px solid var(--nubra-blue-200); outline-offset:2px;">Payoff</button>
+          </div>
+          <div class="nb-flip-inner {{ flipClass }}">
+
+          <!-- FRONT: Combined margin requirements -->
+          <section class="nb-face nb-face-front" style="background:linear-gradient(180deg, rgba(0,120,206,.12), var(--card)); border:1px solid rgba(120,201,255,.20); border-radius:16px; box-shadow:var(--elev-2); overflow:hidden; display:flex; flex-direction:column;">
 
           <!-- hero -->
           <div style="padding:18px;">
-            <div style="font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--t2);">Combined margin requirements</div>
+            <div style="font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--t2); padding-right:140px; min-height:24px;">Margin requirements</div>
             <div style="margin-top:7px;">
               <span style="{{ totalStyle }}">{{ totalMarginStr }}</span>
             </div>
@@ -409,6 +430,68 @@
           </div>
         </section>
 
+          <!-- BACK: Payoff at expiry -->
+          <section class="nb-face nb-face-back" style="background:linear-gradient(180deg, rgba(0,120,206,.12), var(--card)); border:1px solid rgba(120,201,255,.20); border-radius:16px; box-shadow:var(--elev-2); overflow:auto; padding:18px;">
+            <div style="margin-bottom:10px; padding-right:140px; min-height:24px;"><span style="font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--t3);">Payoff at expiry</span></div>
+            <sc-if value="{{ payoffShow }}" hint-placeholder-val="{{ false }}">
+              <div style="position:relative;" onMouseMove="{{ onPayoffMove }}" onMouseLeave="{{ onPayoffLeave }}">
+                <svg viewBox="0 0 600 200" preserveAspectRatio="none" style="width:100%; height:168px; display:block;">
+                  <path d="{{ payoffProfitPath }}" fill="rgba(124,207,94,.18)" stroke="none"></path>
+                  <path d="{{ payoffLossPath }}" fill="rgba(241,66,66,.18)" stroke="none"></path>
+                  <line x1="0" y1="{{ zeroY }}" x2="600" y2="{{ zeroY }}" stroke="rgba(245,245,255,.3)" stroke-width="1.5"></line>
+                  <sc-for list="{{ strikeLines }}" as="s" hint-placeholder-count="2"><line x1="{{ s.x }}" y1="0" x2="{{ s.x }}" y2="200" stroke="rgba(245,245,255,.16)" stroke-width="1" stroke-dasharray="2 3"></line></sc-for>
+                  <sc-for list="{{ beLines }}" as="b" hint-placeholder-count="2"><line x1="{{ b.x }}" y1="0" x2="{{ b.x }}" y2="200" stroke="rgba(177,102,16,.6)" stroke-width="1" stroke-dasharray="4 3"></line></sc-for>
+                  <line x1="{{ spotX }}" y1="0" x2="{{ spotX }}" y2="200" stroke="rgba(120,201,255,.5)" stroke-width="1.2" stroke-dasharray="3 3"></line>
+                  <path d="{{ payoffLinePath }}" fill="none" stroke="var(--nubra-blue-200)" stroke-width="2" stroke-linejoin="round"></path>
+                  <sc-if value="{{ hoverOn }}" hint-placeholder-val="{{ false }}"><line x1="{{ hoverSvgX }}" y1="0" x2="{{ hoverSvgX }}" y2="200" stroke="var(--t2)" stroke-width="1" stroke-dasharray="2 2"></line></sc-if>
+                </svg>
+                <!-- Y axis -->
+                <sc-for list="{{ yAxis }}" as="y" hint-placeholder-count="5">
+                  <div style="position:absolute; left:0; transform:translateY(-50%); top:{{ y.topPct }}; font-family:var(--font-mono); font-size:9px; color:var(--tm); background:var(--card); padding:0 3px; border-radius:3px;">{{ y.label }}</div>
+                </sc-for>
+                <!-- hover tooltip -->
+                <sc-if value="{{ hoverOn }}" hint-placeholder-val="{{ false }}">
+                  <div style="position:absolute; top:4px; left:{{ hoverLeftPct }}; transform:translateX(-50%); background:var(--menu-bg); border:1px solid var(--bd); border-radius:7px; padding:5px 8px; box-shadow:0 6px 18px rgba(0,0,0,.4); pointer-events:none; white-space:nowrap; z-index:3;">
+                    <div style="font-family:var(--font-mono); font-size:10px; color:var(--t2);">{{ hoverPrice }}</div>
+                    <div style="font-family:var(--font-display); font-weight:700; font-size:12px; font-variant-numeric:tabular-nums; color:{{ hoverColor }};">{{ hoverPnl }}</div>
+                  </div>
+                </sc-if>
+              </div>
+              <div style="display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:10px; color:var(--tm); margin-top:18px;">
+                <span>{{ xLabLow }}</span><span style="color:var(--nubra-blue-200);">spot {{ xLabSpot }}</span><span>{{ xLabHigh }}</span>
+              </div>
+
+              <div style="display:flex; gap:10px; margin-top:14px;">
+                <div style="flex:1; padding:9px 10px; border-radius:9px; background:rgba(124,207,94,.08); border:1px solid rgba(124,207,94,.2);">
+                  <div style="font-size:10px; color:var(--tm);">Max profit</div>
+                  <div style="font-family:var(--font-display); font-weight:600; font-size:13px; font-variant-numeric:tabular-nums; color:var(--buy); margin-top:2px;">{{ payoffMaxStr }}</div>
+                </div>
+                <div style="flex:1; padding:9px 10px; border-radius:9px; background:rgba(241,66,66,.08); border:1px solid rgba(241,66,66,.2);">
+                  <div style="font-size:10px; color:var(--tm);">Max loss</div>
+                  <div style="font-family:var(--font-display); font-weight:600; font-size:13px; font-variant-numeric:tabular-nums; color:var(--down-500); margin-top:2px;">{{ payoffMinStr }}</div>
+                </div>
+                <div style="flex:1; padding:9px 10px; border-radius:9px; background:var(--chip); border:1px solid var(--bd);">
+                  <div style="font-size:10px; color:var(--tm);">P&amp;L at spot</div>
+                  <div style="font-family:var(--font-display); font-weight:600; font-size:13px; font-variant-numeric:tabular-nums; color:{{ spotPnlColor }}; margin-top:2px;">{{ spotPnlStr }}</div>
+                </div>
+              </div>
+
+              <!-- key metrics -->
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px 14px; margin-top:14px; padding-top:13px; border-top:1px solid var(--bd);">
+                <div style="display:flex; justify-content:space-between; gap:8px;"><span style="font-size:11.5px; color:var(--t3);">Net premium</span><span style="font-family:var(--font-display); font-size:12px; font-variant-numeric:tabular-nums; color:{{ netPremMetaColor }};">{{ netPremMeta }}</span></div>
+                <div style="display:flex; justify-content:space-between; gap:8px;"><span style="font-size:11.5px; color:var(--t3);">Risk : Reward</span><span style="font-family:var(--font-display); font-size:12px; font-variant-numeric:tabular-nums; color:var(--t1);">{{ rrStr }}</span></div>
+                <div style="display:flex; justify-content:space-between; gap:8px;"><span style="font-size:11.5px; color:var(--t3);">Prob. of profit</span><span style="font-family:var(--font-display); font-size:12px; font-variant-numeric:tabular-nums; color:var(--t1);">{{ popStr }}</span></div>
+                <div style="display:flex; justify-content:space-between; gap:8px;"><span style="font-size:11.5px; color:var(--t3);">Days to expiry</span><span style="font-family:var(--font-display); font-size:12px; font-variant-numeric:tabular-nums; color:var(--t1);">{{ dteStr }}</span></div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ noPayoff }}" hint-placeholder-val="{{ true }}">
+              <div style="min-height:300px; display:flex; align-items:center; justify-content:center; text-align:center; font-size:13px; color:var(--tfaint); line-height:1.6; padding:0 12px;">Add a contract to see the payoff at expiry.</div>
+            </sc-if>
+          </section>
+
+          </div>
+        </div>
+
         <!-- Situational margin warning -->
         <sc-if value="{{ situationalShow }}" hint-placeholder-val="{{ false }}">
           <section style="background:rgba(177,102,16,.14); border:1px solid rgba(177,102,16,.4); border-radius:12px; padding:13px;">
@@ -421,36 +504,6 @@
                 </div>
               </sc-for>
             </div>
-          </section>
-        </sc-if>
-
-        <!-- Payoff chart -->
-        <sc-if value="{{ payoffShow }}" hint-placeholder-val="{{ false }}">
-          <section style="background:var(--card); border:1px solid var(--bd); border-radius:14px; padding:16px;">
-            <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
-              <span style="font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--t3);">Payoff at expiry</span>
-            </div>
-            <svg viewBox="0 0 600 200" preserveAspectRatio="none" style="width:100%; height:150px; display:block;">
-              <path d="{{ payoffProfitPath }}" fill="rgba(124,207,94,.18)" stroke="none"></path>
-              <path d="{{ payoffLossPath }}" fill="rgba(241,66,66,.18)" stroke="none"></path>
-              <line x1="0" y1="{{ zeroY }}" x2="600" y2="{{ zeroY }}" stroke="rgba(245,245,255,.25)" stroke-width="1" stroke-dasharray="4 4"></line>
-              <line x1="{{ spotX }}" y1="0" x2="{{ spotX }}" y2="200" stroke="rgba(120,201,255,.3)" stroke-width="1" stroke-dasharray="3 3"></line>
-              <path d="{{ payoffLinePath }}" fill="none" stroke="var(--nubra-blue-200)" stroke-width="2" stroke-linejoin="round"></path>
-            </svg>
-            <div style="display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:10px; color:var(--tm); margin-top:4px;">
-              <span>{{ xLabLow }}</span><span style="color:var(--nubra-blue-200);">{{ xLabSpot }}</span><span>{{ xLabHigh }}</span>
-            </div>
-            <div style="display:flex; gap:10px; margin-top:12px;">
-              <div style="flex:1; padding:9px 10px; border-radius:9px; background:rgba(124,207,94,.08); border:1px solid rgba(124,207,94,.2);">
-                <div style="font-size:10px; color:var(--tm);">Max profit (in range)</div>
-                <div style="font-family:var(--font-display); font-weight:600; font-size:13px; font-variant-numeric:tabular-nums; color:var(--buy); margin-top:2px;">{{ payoffMaxStr }}</div>
-              </div>
-              <div style="flex:1; padding:9px 10px; border-radius:9px; background:rgba(241,66,66,.08); border:1px solid rgba(241,66,66,.2);">
-                <div style="font-size:10px; color:var(--tm);">Max loss (in range)</div>
-                <div style="font-family:var(--font-display); font-weight:600; font-size:13px; font-variant-numeric:tabular-nums; color:var(--down-500); margin-top:2px;">{{ payoffMinStr }}</div>
-              </div>
-            </div>
-            <div style="margin-top:9px; font-size:11px; color:var(--t3);">Breakeven: <span style="font-family:var(--font-display); color:var(--t2); font-variant-numeric:tabular-nums;">{{ beLabel }}</span></div>
           </section>
         </sc-if>
 
@@ -526,7 +579,7 @@
       </div>
       <div style="display:flex; flex-direction:column; gap:6px; text-align:center; max-width:920px;">
         <p style="margin:0; font-size:11px; line-height:1.5; color:var(--tm);">Zanskar Securities Private Limited — SEBI registered stock broker (INZ000316631) · Exchange Membership: NSE 90370 | BSE 6870 | CDSL DP Id 12102000</p>
-        <p style="margin:0; font-size:11px; line-height:1.5; color:var(--tm);">4th Floor (Left Wing), Raheja Point 17/2, Magarath Road, Ashok Nagar, Opp Garuda Mall, Bengaluru, Karnataka 560025 · <a href="mailto:compliance@zanskarsec.com" style="color:var(--nubra-blue-200); text-decoration:none;">compliance@zanskarsec.com</a> · +91 86605 00796</p>
+        <p style="margin:0; font-size:11px; line-height:1.5; color:var(--tm);">4th Floor (Left Wing), Raheja Point 17/2, Magarath Road, Ashok Nagar, Opp Garuda Mall, Bengaluru, Karnataka 560025 · <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="30735f5d405c59515e5355704a515e435b51424355531e535f5d">[email&#160;protected]</a> · +91 86605 00796</p>
         <p style="margin:0; font-size:11px; line-height:1.5; color:var(--tm);">© 2025 Zanskar Securities Private Limited. All rights reserved. CIN: U64199KA2023PTC17563 · <a href="#" style="color:var(--nubra-blue-200); text-decoration:none;">Privacy Policy</a> · <a href="#" style="color:var(--nubra-blue-200); text-decoration:none;">Terms of Service</a> · <a href="#" style="color:var(--nubra-blue-200); text-decoration:none;">Disclaimer</a></p>
       </div>
     </footer>
@@ -534,9 +587,9 @@
   </div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1240,&quot;height&quot;:900},&quot;showPayoff&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;nearExpiryDemo&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;}}">
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1240,&quot;height&quot;:900},&quot;showPayoff&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;nearExpiryDemo&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;}}">
 class Component extends DCLogic {
-  static SIGNUP_URL = 'https://nubra.io/';
+  static SIGNUP_URL = 'https://nubra.io/open-account';
   STRATS = {
     bull_call_spread:  { name: 'Bull Call Spread',  legs: [{ o: 'CE', s: 'BUY', k: 0 }, { o: 'CE', s: 'SELL', k: 1 }] },
     bear_call_spread:  { name: 'Bear Call Spread',  legs: [{ o: 'CE', s: 'SELL', k: 0 }, { o: 'CE', s: 'BUY', k: 1 }] },
@@ -556,6 +609,9 @@ class Component extends DCLogic {
   md() { return window.MarketData; }
   fmt(n, dec = 2) { if (n == null || isNaN(n)) return '\u2014'; return '\u20b9' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: dec, maximumFractionDigits: dec }); }
   fmtInt(n) { return Number(n).toLocaleString('en-IN'); }
+  fmtK(n) { const a = Math.abs(n); if (a >= 100000) return (n < 0 ? '−' : '') + '₹' + (a / 100000).toFixed(1) + 'L'; if (a >= 1000) return (n < 0 ? '−' : '') + '₹' + Math.round(a / 1000) + 'k'; return (n < 0 ? '−' : '') + '₹' + Math.round(a); }
+  onPayoffMove(e) { const pm = this._pm; if (!pm) return; const rect = e.currentTarget.getBoundingClientRect(); if (rect.width <= 0) return; let fx = (e.clientX - rect.left) / rect.width; fx = Math.max(0, Math.min(1, fx)); const price = pm.minS + fx * (pm.maxS - pm.minS); const pnl = pm.pnlAt(price); this.setState({ hover: { fx, price, pnl } }); }
+  onPayoffLeave() { this.setState({ hover: null }); }
 
   state = {
     mode: 'fno',
@@ -567,7 +623,14 @@ class Component extends DCLogic {
     editingIndex: null,
     showBreakdown: true,
     theme: 'dark',
+    flipped: false,
+    hover: null,
   };
+
+  segStyle(active) {
+    const base = 'height:24px; padding:0 11px; border:0; border-radius:999px; cursor:pointer; font-family:var(--font-sans); font-weight:600; font-size:10.5px; letter-spacing:.02em; ';
+    return base + (active ? 'background:var(--nubra-blue-400); color:#ffffff;' : 'background:transparent; color:var(--t3);');
+  }
 
   applyTheme(t) {
     try { document.documentElement.setAttribute('data-theme', t); } catch (e) {}
@@ -614,17 +677,29 @@ class Component extends DCLogic {
   onDraftExchange(ex) { const MD = this.md(); const sym = MD.getInstruments(ex)[0].symbol; const exps = MD.getExpiries(sym).map((e) => e.date); this.setState((s) => ({ draft: { ...s.draft, exchange: ex, symbol: sym, strike: MD._atmOf(sym), expiry: exps.indexOf(s.draft.expiry) >= 0 ? s.draft.expiry : exps[0], lots: 1 } })); }
   onDraftSymbol(sym) { const MD = this.md(); const exps = MD.getExpiries(sym).map((e) => e.date); this.setState((s) => ({ draft: { ...s.draft, symbol: sym, strike: MD._atmOf(sym), expiry: exps.indexOf(s.draft.expiry) >= 0 ? s.draft.expiry : exps[0], lots: 1 } })); }
   addDraft() {
+    const wasEditing = this.state.editingIndex != null;
     this.setState((s) => {
       const d = s.draft; const isOpt = d.product === 'Options';
       const leg = { exchange: d.exchange, product: d.product, symbol: d.symbol, expiry: d.expiry, optionType: isOpt ? d.optionType : null, strike: isOpt ? d.strike : null, tradeType: d.side, lots: Math.max(1, Math.round(d.lots || 1)) };
       if (s.editingIndex != null) { const legs = s.legs.map((l, i) => i === s.editingIndex ? leg : l); return { legs, editingIndex: null }; }
       return { legs: [...s.legs, leg] };
     });
+    if (!wasEditing) setTimeout(() => this.maybePeek(), 0);
+  }
+  maybePeek() {
+    if (this._peeking || this.state.flipped) return;
+    try { if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return; } catch (e) {}
+    const legs = this.positionLegs();
+    if (legs.length < 1) return;
+    this._peeking = true;
+    this.setState({ flipped: true });
+    clearTimeout(this._pk1); clearTimeout(this._pk2);
+    this._pk1 = setTimeout(() => { this.setState({ flipped: false }); this._pk2 = setTimeout(() => { this._peeking = false; }, 650); }, 800);
   }
   loadRow(i) { const MD = this.md(); this.setState((s) => { const l = s.legs[i]; return { editingIndex: i, draft: { exchange: l.exchange, product: l.product, symbol: l.symbol, expiry: l.expiry, optionType: l.optionType || 'CE', strike: l.strike != null ? l.strike : MD._atmOf(l.symbol), lots: l.lots, side: l.tradeType } }; }); }
   cancelEdit() { this.setState({ editingIndex: null }); }
   resetAll() { this.setState({ legs: [], editingIndex: null }); }
-  quickAddLeg(cfg) { this.setState((s) => ({ legs: [...s.legs, { ...cfg, lots: 1 }], editingIndex: null })); }
+  quickAddLeg(cfg) { this.setState((s) => ({ legs: [...s.legs, { ...cfg, lots: 1 }], editingIndex: null })); setTimeout(() => this.maybePeek(), 0); }
   removeLeg(i) { this.setState((s) => { const legs = s.legs.filter((_, idx) => idx !== i); let e = s.editingIndex; if (e === i) e = null; else if (e != null && e > i) e -= 1; return { legs, editingIndex: e }; }); }
 
   regen(patch) {
@@ -638,6 +713,7 @@ class Component extends DCLogic {
       const pLegs = this.genPLegs(next.strategy, next.pUnderlying, next.pExpiry, next.pWidth, next.pLots);
       return { ...patch, pExpiry: next.pExpiry, pWidth: next.pWidth, pLegs };
     });
+    if (patch && Object.keys(patch).length > 0) setTimeout(() => this.maybePeek(), 0);
   }
   updatePLeg(i, patch) { this.setState((s) => ({ pLegs: s.pLegs.map((l, idx) => idx === i ? { ...l, ...patch } : l) })); }
   pLegStrike(i, dir) { this.setState((s) => { const MD = this.md(); const step = MD.getInstrument(s.pUnderlying).strikeStep; const pLegs = s.pLegs.map((l, idx) => { if (idx !== i) return l; const strike = Math.max(step, l.strike + dir * step); const price = MD.getQuote(s.pUnderlying, l.expiry, strike, l.optType).price; return { ...l, strike, price }; }); return { pLegs }; }); }
@@ -705,7 +781,10 @@ class Component extends DCLogic {
 
     const breakdownLegs = legs.map((l, i) => { const p = pm[i]; return { title: this.legTitle(l), side: l.tradeType, sideTag: this.sideTag(l.tradeType), qtyStr: this.fmtInt(p.qty), spanStr: this.fmt(p.SPANMargin, 0), totalStr: this.fmt(p.totalMargin, 0) }; });
 
-    const showPayoff = (this.props.showPayoff != null ? this.props.showPayoff : true) && multiLeg && legs.some((l) => l.product === 'Options');
+    const showPayoff = (this.props.showPayoff != null ? this.props.showPayoff : true) && hasLegs;
+    const daysToExp = hasLegs ? MD._expiryByDate(legs[0].expiry).days : 0;
+    const greeks = hasLegs ? MD.getGreeks(legs) : { delta: 0, theta: 0, gamma: 0, vega: 0 };
+    const credit = m.netPremium < 0;
     let pf = {};
     if (showPayoff) {
       const en = legs.map((l, i) => ({ product: l.product, optionType: l.optionType, strike: l.strike, tradeType: l.tradeType, qty: pm[i].qty, premium: l.price != null ? l.price : MD.getQuote(l.symbol, l.expiry, l.strike, l.optionType).price }));
@@ -715,12 +794,41 @@ class Component extends DCLogic {
       const pts = []; for (let k = 0; k <= N; k++) { const x = minS + (maxS - minS) * k / N; pts.push({ x, p: pnlAt(x) }); }
       const maxAbs = Math.max(1, ...pts.map((o) => Math.abs(o.p)));
       const xs = (x) => ((x - minS) / (maxS - minS)) * W; const zeroY = H / 2; const ys = (p) => zeroY - (p / maxAbs) * (H / 2 - padY);
+      const leftPct = (x) => (((x - minS) / (maxS - minS)) * 100).toFixed(2) + '%';
       const linePath = 'M' + pts.map((o) => xs(o.x).toFixed(1) + ' ' + ys(o.p).toFixed(1)).join(' L');
       let prof = 'M ' + xs(minS).toFixed(1) + ' ' + zeroY; pts.forEach((o) => { prof += ' L ' + xs(o.x).toFixed(1) + ' ' + Math.min(ys(o.p), zeroY).toFixed(1); }); prof += ' L ' + xs(maxS).toFixed(1) + ' ' + zeroY + ' Z';
       let loss = 'M ' + xs(minS).toFixed(1) + ' ' + zeroY; pts.forEach((o) => { loss += ' L ' + xs(o.x).toFixed(1) + ' ' + Math.max(ys(o.p), zeroY).toFixed(1); }); loss += ' L ' + xs(maxS).toFixed(1) + ' ' + zeroY + ' Z';
       const maxP = Math.max(...pts.map((o) => o.p)); const minP = Math.min(...pts.map((o) => o.p));
       const bes = []; for (let k = 1; k < pts.length; k++) { const a = pts[k - 1], b = pts[k]; if ((a.p <= 0 && b.p > 0) || (a.p >= 0 && b.p < 0)) { const t = Math.abs(a.p) / (Math.abs(a.p) + Math.abs(b.p)); bes.push(a.x + (b.x - a.x) * t); } }
-      pf = { payoffLinePath: linePath, payoffProfitPath: prof, payoffLossPath: loss, zeroY, spotX: xs(spot).toFixed(1), payoffMaxStr: this.fmt(maxP, 0), payoffMinStr: this.fmt(minP, 0), beLabel: bes.length ? bes.map((b) => this.fmtInt(Math.round(b))).join('  /  ') : '\u2014', xLabLow: this.fmtInt(Math.round(minS)), xLabSpot: this.fmtInt(Math.round(spot)), xLabHigh: this.fmtInt(Math.round(maxS)) };
+      // strike + breakeven markers
+      const uniqStrikes = [...new Set(en.filter((l) => l.product === 'Options').map((l) => l.strike))].sort((a, b) => a - b);
+      const strikeLines = uniqStrikes.map((s) => ({ x: xs(s).toFixed(1) }));
+      const beLines = bes.map((b) => ({ x: xs(b).toFixed(1) }));
+      // Y axis ticks
+      const yAxis = [maxAbs, maxAbs / 2, 0, -maxAbs / 2, -maxAbs].map((v) => ({ topPct: ((ys(v) / H) * 100).toFixed(2) + '%', label: this.fmtK(v) }));
+      // X markers (strikes + breakevens)
+      const xMarks = [];
+      uniqStrikes.forEach((s) => xMarks.push({ leftPct: leftPct(s), label: this.fmtInt(Math.round(s)), color: 'var(--tm)' }));
+      bes.forEach((b) => xMarks.push({ leftPct: leftPct(b), label: 'BE ' + this.fmtInt(Math.round(b)), color: 'var(--warn-100)' }));
+      const spotP = pnlAt(spot);
+      // probability of profit (illustrative lognormal-ish via normal approx)
+      const sigma = spot * 0.15 * Math.sqrt(Math.max(daysToExp, 1) / 365);
+      const ncdf = (z) => { const t = 1 / (1 + 0.2316419 * Math.abs(z)); const d = 0.3989423 * Math.exp(-z * z / 2); let p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274)))); return z > 0 ? 1 - p : p; };
+      let pop = 0; for (let k = 1; k < pts.length; k++) { if (pts[k].p > 0) { const z1 = (pts[k - 1].x - spot) / sigma, z2 = (pts[k].x - spot) / sigma; pop += Math.max(0, ncdf(z2) - ncdf(z1)); } }
+      const rr = Math.abs(minP) > 0.5 ? (maxP / Math.abs(minP)) : null;
+      this._pm = { minS, maxS, spot, en, pnlAt, maxAbs, H, padY };
+      pf = {
+        payoffLinePath: linePath, payoffProfitPath: prof, payoffLossPath: loss, zeroY, spotX: xs(spot).toFixed(1),
+        payoffMaxStr: this.fmt(maxP, 0), payoffMinStr: this.fmt(minP, 0),
+        beLabel: bes.length ? bes.map((b) => this.fmtInt(Math.round(b))).join('  /  ') : '\u2014',
+        xLabLow: this.fmtInt(Math.round(minS)), xLabSpot: this.fmtInt(Math.round(spot)), xLabHigh: this.fmtInt(Math.round(maxS)),
+        strikeLines, beLines, yAxis, xMarks,
+        spotPnlStr: (spotP >= 0 ? '+' : '\u2212') + this.fmt(Math.abs(spotP), 0).slice(1), spotPnlColor: spotP >= 0 ? 'var(--buy)' : 'var(--sell)',
+        rrStr: rr != null ? ('1 : ' + (1 / rr).toFixed(2)) : (Math.abs(minP) <= 0.5 ? 'No risk' : '\u2014'),
+        popStr: (pop * 100).toFixed(0) + '%',
+        dteStr: daysToExp + ' days',
+        gDelta: greeks.delta, gTheta: greeks.theta, gGamma: greeks.gamma, gVega: greeks.vega,
+      };
     }
 
     const situationalShow = !!(this.props.nearExpiryDemo) && hasLegs;
@@ -818,7 +926,19 @@ class Component extends DCLogic {
       netPremStr: this.fmt(Math.abs(m.netPremium)), netPremLabel: (Math.abs(m.netPremium) < 0.005) ? '' : (received ? 'received' : 'paid'), netPremColor: (Math.abs(m.netPremium) < 0.005) ? 'var(--t1)' : (received ? 'var(--buy)' : 'var(--down-500)'),
       breakdownLegs,
       showBreakdown: S.showBreakdown, toggleBreakdown: () => this.setState((s) => ({ showBreakdown: !s.showBreakdown })), chevronTransform: S.showBreakdown ? 'rotate(180deg)' : 'rotate(0deg)',
-      payoffShow: showPayoff, ...pf,
+      payoffShow: showPayoff, noPayoff: !showPayoff, ...pf,
+      netPremMeta: (credit ? 'Credit ' : 'Debit ') + this.fmt(Math.abs(m.netPremium), 0).slice(1).replace(/^/, '₹'), netPremMetaColor: credit ? 'var(--buy)' : 'var(--sell)',
+      hoverOn: showPayoff && !!this.state.hover && !!this._pm,
+      hoverSvgX: this.state.hover ? (this.state.hover.fx * 600).toFixed(1) : '0',
+      hoverLeftPct: this.state.hover ? (this.state.hover.fx * 100).toFixed(2) + '%' : '0%',
+      hoverPrice: this.state.hover ? '₹' + this.fmtInt(Math.round(this.state.hover.price)) : '',
+      hoverPnl: this.state.hover ? ((this.state.hover.pnl >= 0 ? '+₹' : '−₹') + this.fmtInt(Math.round(Math.abs(this.state.hover.pnl)))) : '',
+      hoverColor: (this.state.hover && this.state.hover.pnl >= 0) ? 'var(--buy)' : 'var(--sell)',
+      onPayoffMove: (e) => this.onPayoffMove(e), onPayoffLeave: () => this.onPayoffLeave(),
+      flipClass: S.flipped ? 'flipped' : '',
+      marginPressed: S.flipped ? 'false' : 'true', payoffPressed: S.flipped ? 'true' : 'false',
+      marginSegStyle: this.segStyle(!S.flipped), payoffSegStyle: this.segStyle(S.flipped),
+      onFlipMargin: () => this.setState({ flipped: false }), onFlipPayoff: () => this.setState({ flipped: true }),
       situationalShow, situationalItems,
     };
   }
