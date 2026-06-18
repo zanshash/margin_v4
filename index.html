@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="colors_and_type.css">
+<style>
+  html { margin:0; padding:0; background:#060a0e; }
+  html[data-theme="light"] { background:#F5F6F8; }
+  body { margin:0; padding:0; }
+  * { box-sizing: border-box; }
+  html[data-theme="dark"] {
+    --t1:#f2f4f8; --t2:#c4cbd4; --t3:#8b95a1;
+    --bd:rgba(245,245,255,.12);
+    --card:rgba(10,15,22,.62);
+    --field:rgba(245,245,255,.05); --chip:rgba(245,245,255,.04); --rowbg:rgba(245,245,255,.03);
+    --tm:rgba(245,245,255,.62); --tm2:rgba(245,245,255,.55); --tfaint:rgba(245,245,255,.46);
+    --scroll:rgba(245,245,255,.16);
+    --menu-bg:#0d141c; --menu-text:#e8ecf2; --trigger-text:#f5f5ff; --ddhover:rgba(0,120,206,.22);
+    --app-bg:radial-gradient(1000px 640px at 86% -4%, rgba(0,120,206,.17), transparent 58%), #060a0e;
+    --buy:var(--up-300); --sell:var(--down-500);
+    --ticker-bg:rgba(8,12,18,.9); --icon-inv:brightness(0) invert(1);
+  }
+  html[data-theme="light"] {
+    --t1:#0E1116; --t2:#3b424c; --t3:#697079;
+    --bd:#E3E6EC;
+    --card:#FFFFFF;
+    --field:#F1F3F7; --chip:#F1F3F7; --rowbg:#FAFBFC;
+    --tm:#5f6671; --tm2:#727983; --tfaint:#9aa1ab;
+    --scroll:rgba(14,17,22,.22);
+    --menu-bg:#FFFFFF; --menu-text:#0E1116; --trigger-text:#0E1116; --ddhover:rgba(0,120,206,.10);
+    --app-bg:radial-gradient(1000px 640px at 86% -6%, rgba(0,120,206,.06), transparent 62%), #F5F6F8;
+    --buy:var(--up-600); --sell:var(--down-600);
+    --ticker-bg:#FFFFFF; --icon-inv:brightness(0);
+  }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: var(--scroll); border-radius: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+  select option { background-color:var(--menu-bg); color:var(--trigger-text); }
+  select option:checked { background:#0a4a7a; color:#fff; }
+  @keyframes nbFade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  @keyframes nbMarquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  .nb-ticker { overflow: hidden; }
+  .nb-ticker-track { display: inline-flex; white-space: nowrap; animation: nbMarquee 48s linear infinite; will-change: transform; }
+  .nb-ticker:hover .nb-ticker-track { animation-play-state: paused; }
+  details.nb-faq > summary { list-style: none; cursor: pointer; }
+  details.nb-faq > summary::-webkit-details-marker { display: none; }
+  details.nb-faq > summary .nb-faq-chev { transition: transform 180ms var(--ease-out); }
+  details.nb-faq[open] > summary .nb-faq-chev { transform: rotate(180deg); }
+  @media (prefers-reduced-motion: reduce) {
+    .nb-ticker { overflow-x: auto; }
+    .nb-ticker-track { animation: none; }
+  }
+</style>
+<script src="marketData.js"></script>
+</helmet>
+
+<div style="min-height:100vh; background:var(--app-bg); background-attachment:fixed; color:var(--t1); font-family:var(--font-sans);">
+
+  <!-- ── Ticker strip (full width) ───────────────────────── -->
+  <div class="nb-ticker" style="height:38px; display:flex; align-items:center; border-bottom:1px solid var(--bd); background:var(--ticker-bg);">
+    <div class="nb-ticker-track">
+      <sc-for list="{{ tickerItems }}" as="t" hint-placeholder-count="10">
+        <span style="display:inline-flex; align-items:baseline; gap:8px; padding:0 18px; border-right:1px solid var(--bd); font-size:12px;">
+          <span style="font-weight:600; color:var(--t1); letter-spacing:.01em;">{{ t.symbol }}</span>
+          <span style="font-family:var(--font-display); font-variant-numeric:tabular-nums; color:var(--t2);">{{ t.price }}</span>
+          <span style="font-family:var(--font-display); font-variant-numeric:tabular-nums; color:{{ t.color }};">{{ t.delta }}</span>
+        </span>
+      </sc-for>
+      <sc-for list="{{ tickerItems }}" as="t" hint-placeholder-count="10">
+        <span style="display:inline-flex; align-items:baseline; gap:8px; padding:0 18px; border-right:1px solid var(--bd); font-size:12px;">
+          <span style="font-weight:600; color:var(--t1); letter-spacing:.01em;">{{ t.symbol }}</span>
+          <span style="font-family:var(--font-display); font-variant-numeric:tabular-nums; color:var(--t2);">{{ t.price }}</span>
+          <span style="font-family:var(--font-display); font-variant-numeric:tabular-nums; color:{{ t.color }};">{{ t.delta }}</span>
+        </span>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="padding:22px 20px 80px;">
+    <div style="max-width:1240px; margin:0 auto; display:flex; flex-direction:column; gap:20px;">
+
+    <!-- ── Header ─────────────────────────────────────────── -->
+    <header style="display:flex; align-items:flex-start; gap:14px; flex-wrap:wrap;">
+      <div style="display:flex; align-items:center; gap:11px;">
+        <img src="assets/logo-mark.svg" alt="Nubra" style="width:30px; height:30px; filter:var(--icon-inv);" />
+        <div style="display:flex; flex-direction:column; gap:2px;">
+          <span style="font-family:var(--font-display); font-weight:700; font-size:18px; letter-spacing:-.01em; color:var(--t1);">Nubra Margin Calculator</span>
+          <span style="font-size:12px; color:var(--t3);">F&amp;O · Prebuilt Baskets</span>
+        </div>
+      </div>
+      <div style="flex:1;"></div>
+      <a href="{{ signupUrl }}" target="_blank" rel="noopener" style="display:inline-flex; align-items:center; height:44px; padding:0 24px; border-radius:999px; border:0; background:var(--nubra-blue-400); color:#ffffff; font-family:var(--font-sans); font-weight:600; font-size:15px; text-decoration:none; cursor:pointer; box-shadow:var(--elev-glow-blue); white-space:nowrap;" style-focus="outline:2px solid var(--nubra-blue-200); outline-offset:2px;">Open Demat account</a>
+    </header>
+
+    <!-- ── Mode toggle ────────────────────────────────────── -->
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+      <div style="display:inline-flex; background:var(--chip); border:1px solid var(--bd); border-radius:999px; padding:3px; gap:2px;">
+        <button onClick="{{ setModeFno }}" style="{{ tabFnoStyle }}">F&amp;O</button>
+        <button onClick="{{ setModePrebuilt }}" style="{{ tabPrebuiltStyle }}">Pre-built baskets</button>
+      </div>
+      <button onClick="{{ onToggleTheme }}" title="Toggle theme" aria-label="Toggle theme" style="width:38px; height:38px; display:grid; place-items:center; border:1px solid var(--bd); border-radius:999px; background:var(--chip); cursor:pointer; color:var(--t2);" style-focus="outline:2px solid var(--nubra-blue-200); outline-offset:2px;">
+        <sc-if value="{{ isDark }}" hint-placeholder-val="{{ true }}">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+        </sc-if>
+        <sc-if value="{{ isLight }}" hint-placeholder-val="{{ false }}">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path></svg>
+        </sc-if>
+      </button>
+    </div>
+
+    <!-- ── Two-column body ───────────────────────────────── -->
+    <div style="display:flex; flex-wrap:wrap; gap:18px; align-items:flex-start;">
+
+      <!-- ===== BUILDER (left) ===== -->
+      <div style="flex:999 1 600px; display:flex; flex-direction:column; gap:16px; min-width:300px;">
+
+        <!-- ========== F&O MODE ========== -->
+        <sc-if value="{{ isFno }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex; flex-direction:column; gap:16px;">
+
+            <!-- Add-one-leg form -->
+            <section style="background:var(--card); border:1px solid var(--bd); border-radius:14px; padding:16px;">
+              <div style="display:flex; align-items:center; gap:10px; margin-bottom:13px;">
+                <span style="font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--t3);">{{ formTitle }}</span>
+                <sc-if value="{{ isEditing }}" hint-placeholder-val="{{ false }}">
+                  <button onClick="{{ onCancelEdit }}" style="height:22px; padding:0 9px; border-radius:999px; border:1px solid var(--bd); background:transparent; color:var(--t3); font-family:var(--font-sans); font-size:11px; cursor:pointer;">Cancel edit</button>
+                </sc-if>
+              </div>
+              <div style="display:flex; flex-wrap:wrap; gap:11px; align-items:flex-end;">
+                <label style="display:flex; flex-direction:column; gap:5px; flex:1 1 110px;">
+                  <span style="font-size:9.5px; font-weight:600; letter-spacing:.07em; text-transform:uppercase; color:var(--tm2);">Exchange</span>
+                  <dc-import name="Dropdown" value="{{ dExchange }}" options="{{ dExchangeOptions }}" on-change="{{ onDExchange }}" variant="field" hint-size="100%,38px"></dc-import>
+                </label>
+                <label style="display:flex; flex-direction:column; gap:5px; flex:1 1 130px;">
+                  <span style="font-size:9.5px; font-weight:600; letter-spacing:.07em; text-transform:uppercase; color:var(--tm2);">Product</span>
+                  <dc-import name="Dropdown" value="{{ dProduct }}" options="{{ dProductOptions }}" on-change="{{ onDProduct }}" variant="field" hint-size="100%,38px"></dc-import>
+                </label>
+                <label style="display:flex; flex-direction:column; gap:5px; flex:1 1 130px;">
+                  <span style="font-size:9.5px; font-weight:600; letter-spacing:.07em; text-transform:uppercase; color:var(--tm2);">Symbol</span>
+                  <dc-import name="Dropdown" value="{{ dSymbol }}" options="{{ dSymbolOptions }}" on-change="{{ onDSymbol }}" variant="field" hint-size="100%,38px"></dc-import>
+                </label>
+                <label style="display:flex; flex-direction:column; gap:5px; flex:1 1 130px;">
+                  <span style="font-size:9.5px; font-weight:600; letter-spacing:.07em; text-transform:uppercase; color:var(--tm2);">Expiry</span>
+                  <dc-import name="Dropdown" value="{{ dExpiry }}" options="{{ expiryOptions }}" on-change="{{ onDExpiry }}" variant="field" hint-size="100%,38px"></dc-import>
+                </label>
+                <sc-if value="{{ dIsOpt }}" hint-placeholder-val="{{ true }}">
+                  <label style="display:flex; flex-direction:column; gap:5px; flex:1 1 90px;">
+                    <span style="font-size:9.5px; font-weight:600; letter-spacing:.07em; text-transform:uppercase; color:var(--tm2);">Option type</span>
+                    <dc-import name="Dropdown" value="{{ dOptType }}" options="{{ optTypeOptions }}" on-change="{{ onDOptType }}" variant="field" hint-size="100%,38px"></dc-import>
+                  </label>
+                </sc-if>
+                <sc-if value="{{ dIsOpt }}" hint-placeholder-val="{{ true }}">
+                  <label style="display:flex; flex-direction:column; gap:5px; flex:1 1 120px;">
+                    <span style="font-size:9.5px; font-weight:600; letter-spacing:.07em; text-transform:uppercase; color:var(--tm2);">Strike</span>
+                    <dc-import name="Dropdown" value="{{ dStrike }}" options="{{ dStrikeOptions }}" on-change="{{ onDStrike }}" variant="field" hint-size="100%,38px"></dc-import>
+                  </label>
+                </sc-if>
+              </div>
+
+              <!-- primary action row -->
+              <div style="display:flex; align-items:flex-end; gap:16px; margin-top:14px; padding-top:14px; border-top:1px solid var(--bd); flex-wrap:wrap;">
+                <div style="display:flex; flex-direction:column; gap:6px;">
+                  <span style="font-size:9.5px; font-weight:600; letter-spacing:.07em; text-transform:uppercase; color:var(--tm2);">Lots <span style="text-transform:none; letter-spacing:0; font-weight:400; color:var(--tfaint);">· lot {{ dLotStr }} = {{ dQtyStr }} qty</span></span>
+                  <div style="display:flex; align-items:center; height:40px; width:132px; border:1px solid var(--bd); border-radius:9px; background:var(--field);">
+                    <button onClick="{{ onDLotsDec }}" style="width:40px; height:38px; border:0; background:transparent; cursor:pointer; color:var(--t2); font-size:18px;">−</button>
+                    <span style="flex:1; text-align:center; font-family:var(--font-display); font-weight:600; font-size:15px; font-variant-numeric:tabular-nums; color:var(--t1);">{{ dLots }}</span>
+                    <button onClick="{{ onDLotsInc }}" style="width:40px; height:38px; border:0; background:transparent; cursor:pointer; color:var(--t2); font-size:18px;">+</button>
+                  </div>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:6px;">
+                  <span style="font-size:9.5px; font-weight:600; letter-spacing:.07em; text-transform:uppercase; color:var(--tm2);">Side</span>
+                  <div style="display:inline-flex; border:1px solid var(--bd); border-radius:9px; overflow:hidden; height:40px;">
+                    <button onClick="{{ setDBuy }}" style="{{ dBuyStyle }}">Buy</button>
+                    <button onClick="{{ setDSell }}" style="{{ dSellStyle }}">Sell</button>
+                  </div>
+                </div>
+                <div style="flex:1; min-width:8px;"></div>
+                <button onClick="{{ onAddDraft }}" style="height:38px; padding:0 18px; border-radius:9px; border:0; background:var(--nubra-blue-400); color:var(--fg-on-primary); font-family:var(--font-sans); font-weight:600; font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:var(--elev-glow-blue);">
+                  <img src="assets/icons/add.svg" alt="" style="width:14px; height:14px; filter:brightness(0) invert(1);" /> {{ addLabel }}
+                </button>
+              </div>
+
+              <!-- quick add -->
+              <div style="display:flex; align-items:center; gap:9px; margin-top:15px; flex-wrap:wrap;">
+                <span style="font-size:9.5px; font-weight:600; letter-spacing:.07em; text-transform:uppercase; color:rgba(245,245,255,.5);">Quick add</span>
+                <sc-for list="{{ quickAdds }}" as="q" hint-placeholder-count="4">
+                  <button onClick="{{ q.add }}" style="height:30px; padding:0 13px; border-radius:999px; border:1px solid var(--bd); background:var(--chip); color:var(--t2); font-family:var(--font-sans); font-size:12px; font-weight:500; cursor:pointer; display:inline-flex; align-items:center; gap:6px; white-space:nowrap;" style-hover="background:rgba(0,120,206,.16); border-color:var(--nubra-blue-200); color:var(--t1);">
+                    <span style="color:var(--nubra-blue-200); font-weight:700;">+</span> {{ q.label }}
+                  </button>
+                </sc-for>
+              </div>
+            </section>
+
+            <!-- Results table -->
+            <section style="background:var(--card); border:1px solid var(--bd); border-radius:14px; padding:16px;">
+              <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+                <span style="font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--t3);">Position</span>
+                <span style="font-size:11px; color:var(--tm);">· {{ activeLegCount }} entries</span>
+                <div style="flex:1;"></div>
+                <sc-if value="{{ hasLegs }}" hint-placeholder-val="{{ false }}">
+                  <button onClick="{{ onResetAll }}" style="height:30px; padding:0 13px; border-radius:999px; border:1px solid var(--bd); background:var(--chip); color:var(--t2); font-family:var(--font-sans); font-weight:500; font-size:12px; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+                    <img src="assets/icons/delete.svg" alt="" style="width:13px; height:13px; filter:var(--icon-inv); opacity:.6;" /> Reset all
+                  </button>
+                </sc-if>
+              </div>
+
+              <div>
+                <!-- head (always visible) -->
+                <div style="display:grid; grid-template-columns:minmax(96px,1.3fr) 74px 50px 58px 64px 1fr 1fr 1fr 30px; gap:8px; padding:8px 2px; border-bottom:1px solid var(--bd); font-size:10px; color:var(--tm); text-transform:uppercase; letter-spacing:.04em; align-items:center;">
+                  <span>Symbol</span><span style="text-align:right;">Strike</span><span style="text-align:center;">Opt</span><span style="text-align:center;">Trade</span><span style="text-align:right;">Qty</span><span style="text-align:right;">Initial</span><span style="text-align:right;">Exposure</span><span style="text-align:right;">Total</span><span></span>
+                </div>
+                <sc-if value="{{ hasLegs }}" hint-placeholder-val="{{ false }}">
+                  <sc-for list="{{ fnoRows }}" as="r" hint-placeholder-count="2">
+                    <div onClick="{{ r.edit }}" title="Click to edit in form" style="{{ r.rowStyle }}">
+                      <div style="display:flex; flex-direction:column; gap:1px; min-width:0;">
+                        <span style="font-family:var(--font-display); font-weight:600; font-size:12.5px; color:var(--t1); white-space:nowrap;">{{ r.symbol }}</span>
+                        <span style="font-family:var(--font-mono); font-size:9.5px; color:var(--tm); letter-spacing:.02em;">{{ r.exchange }} · {{ r.product }}</span>
+                      </div>
+                      <span style="text-align:right; font-family:var(--font-display); font-size:12.5px; font-variant-numeric:tabular-nums; color:var(--t2);">{{ r.strike }}</span>
+                      <span style="text-align:center; font-family:var(--font-display); font-size:12px; color:var(--t2);">{{ r.optType }}</span>
+                      <span style="display:flex; justify-content:center;"><span style="{{ r.sideTag }}">{{ r.side }}</span></span>
+                      <span style="text-align:right; font-family:var(--font-display); font-size:12.5px; font-variant-numeric:tabular-nums; color:var(--t1);">{{ r.qty }}</span>
+                      <span style="text-align:right; font-family:var(--font-display); font-size:12px; font-variant-numeric:tabular-nums; color:var(--t2);">{{ r.initial }}</span>
+                      <span style="text-align:right; font-family:var(--font-display); font-size:12px; font-variant-numeric:tabular-nums; color:var(--t2);">{{ r.exposure }}</span>
+                      <span style="text-align:right; font-family:var(--font-display); font-weight:700; font-size:12.5px; font-variant-numeric:tabular-nums; color:var(--t1);">{{ r.total }}</span>
+                      <button onClick="{{ r.remove }}" title="Remove" style="width:26px; height:26px; display:grid; place-items:center; border:0; border-radius:6px; background:transparent; cursor:pointer; justify-self:end;">
+                        <img src="assets/icons/delete.svg" alt="remove" style="width:14px; height:14px; filter:var(--icon-inv); opacity:.45;" />
+                      </button>
+                    </div>
+                  </sc-for>
+                </sc-if>
+                <sc-if value="{{ noLegs }}" hint-placeholder-val="{{ true }}">
+                  <div style="display:grid; grid-template-columns:minmax(96px,1.3fr) 74px 50px 58px 64px 1fr 1fr 1fr 30px; gap:8px; padding:11px 2px; border-bottom:1px solid var(--field); align-items:center; opacity:.4;">
+                    <div style="display:flex; flex-direction:column; gap:1px; min-width:0;">
+                      <span style="font-family:var(--font-display); font-weight:600; font-size:12.5px; color:var(--t1); white-space:nowrap;">{{ ghostSymbol }}</span>
+                      <span style="font-family:var(--font-mono); font-size:9.5px; color:var(--tm); letter-spacing:.02em;">{{ ghostSub }}</span>
+                    </div>
+                    <span style="text-align:right; font-family:var(--font-display); font-size:12.5px; font-variant-numeric:tabular-nums; color:var(--t2);">{{ ghostStrike }}</span>
+                    <span style="text-align:center; font-family:var(--font-display); font-size:12px; color:var(--t2);">{{ ghostOpt }}</span>
+                    <span style="display:flex; justify-content:center;"><span style="{{ ghostSideTag }}">{{ ghostSide }}</span></span>
+                    <span style="text-align:right; font-family:var(--font-display); font-size:12.5px; font-variant-numeric:tabular-nums; color:var(--t1);">{{ ghostQty }}</span>
+                    <span style="text-align:right; font-family:var(--font-display); font-size:12px; font-variant-numeric:tabular-nums; color:var(--t2);">₹0</span>
+                    <span style="text-align:right; font-family:var(--font-display); font-size:12px; font-variant-numeric:tabular-nums; color:var(--t2);">₹0</span>
+                    <span style="text-align:right; font-family:var(--font-display); font-weight:700; font-size:12.5px; font-variant-numeric:tabular-nums; color:var(--t1);">₹0.00</span>
+                    <span></span>
+                  </div>
+                </sc-if>
+              </div>
+            </section>
+          </div>
+        </sc-if>
+
+        <!-- ========== PRE-BUILT MODE ========== -->
+        <sc-if value="{{ isPrebuilt }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex; flex-direction:column; gap:16px;">
+
+            <!-- Instrument + strategy header -->
+            <section style="background:var(--card); border:1px solid var(--bd); border-radius:14px; padding:16px;">
+              <div style="display:flex; flex-wrap:wrap; gap:16px; align-items:center;">
+                <!-- underlying -->
+                <div style="display:flex; flex-direction:column; gap:6px; flex:1 1 240px;">
+                  <span style="font-size:9.5px; font-weight:600; letter-spacing:.07em; text-transform:uppercase; color:var(--tm2);">Underlying</span>
+                  <div style="display:flex; align-items:center; gap:12px;">
+                    <div style="flex:0 0 auto; width:150px;">
+                      <dc-import name="Dropdown" value="{{ pUnderlying }}" options="{{ underlyingOptions }}" on-change="{{ onPUnderlying }}" variant="header" hint-size="150px,40px"></dc-import>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:1px;">
+                      <span style="font-family:var(--font-display); font-weight:600; font-size:16px; font-variant-numeric:tabular-nums; color:var(--t1);">{{ pPriceStr }}</span>
+                      <span style="font-family:var(--font-display); font-size:12px; font-variant-numeric:tabular-nums; color:{{ pChgColor }};">{{ pChgStr }}</span>
+                    </div>
+                    <span style="font-size:9.5px; font-weight:600; letter-spacing:.07em; text-transform:uppercase; color:var(--tm2); align-self:flex-start; padding-top:3px; letter-spacing:.04em;">{{ pMarket }}</span>
+                  </div>
+                </div>
+                <div style="flex:1;"></div>
+                <!-- strategy -->
+                <label style="display:flex; flex-direction:column; gap:6px; flex:0 0 auto;">
+                  <span style="font-size:9.5px; font-weight:600; letter-spacing:.07em; text-transform:uppercase; color:var(--tm2);">Strategy</span>
+                  <div style="width:210px;">
+                    <dc-import name="Dropdown" value="{{ pStrategy }}" options="{{ strategyOptions }}" on-change="{{ onPStrategy }}" variant="strategy" hint-size="210px,40px"></dc-import>
+                  </div>
+                </label>
+              </div>
+              <!-- optional strike-width quick-set -->
+              <div style="display:flex; align-items:center; gap:9px; margin-top:14px; padding-top:13px; border-top:1px solid var(--bd); flex-wrap:wrap;">
+                <span style="font-size:11px; color:var(--tm);">Quick-set width</span>
+                <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                  <sc-for list="{{ widthList }}" as="w" hint-placeholder-count="4">
+                    <button onClick="{{ w.onSelect }}" style="{{ w.style }}">{{ w.label }}</button>
+                  </sc-for>
+                </div>
+                <span style="font-size:11px; color:var(--tfaint);">· adjust strikes per leg below</span>
+              </div>
+            </section>
+
+            <!-- Editable leg rows -->
+            <section style="background:var(--card); border:1px solid var(--bd); border-radius:14px; padding:16px;">
+              <div style="font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--t3); margin-bottom:12px;">Legs · {{ activeLegCount }}</div>
+              <div style="overflow:visible;">
+                <div style="min-width:0;">
+                  <div style="display:grid; grid-template-columns:42px 92px minmax(96px,1fr) 44px minmax(96px,1fr) 58px 64px 72px 26px; gap:7px; padding:6px 2px; border-bottom:1px solid var(--bd); font-size:10px; color:var(--tm); text-transform:uppercase; letter-spacing:.04em; align-items:center;">
+                    <span>B/S</span><span>Expiry</span><span style="text-align:center;">Strike</span><span style="text-align:center;">Type</span><span style="text-align:center;">Qty</span><span style="text-align:right;">LTP</span><span style="text-align:right;">Price</span><span style="text-align:right;">Premium</span><span></span>
+                  </div>
+                  <sc-for list="{{ pRows }}" as="r" hint-placeholder-count="4">
+                    <div style="display:grid; grid-template-columns:42px 92px minmax(96px,1fr) 44px minmax(96px,1fr) 58px 64px 72px 26px; gap:7px; padding:9px 2px; border-bottom:1px solid var(--field); align-items:center;">
+                      <button onClick="{{ r.flipSide }}" title="Flip side" style="{{ r.sideBtn }}">{{ r.sideShort }}</button>
+                      <dc-import name="Dropdown" value="{{ r.expiry }}" options="{{ expiryShortOptions }}" on-change="{{ r.onExpiry }}" variant="row" hint-size="100%,32px"></dc-import>
+                      <div style="display:flex; align-items:center; height:32px; border:1px solid var(--bd); border-radius:7px; background:var(--field);">
+                        <button onClick="{{ r.strikeDec }}" style="width:26px; height:30px; border:0; background:transparent; cursor:pointer; color:var(--t3); font-size:15px;">−</button>
+                        <span style="flex:1; text-align:center; font-family:var(--font-display); font-weight:600; font-size:12px; font-variant-numeric:tabular-nums; color:var(--t1);">{{ r.strike }}</span>
+                        <button onClick="{{ r.strikeInc }}" style="width:26px; height:30px; border:0; background:transparent; cursor:pointer; color:var(--t3); font-size:15px;">+</button>
+                      </div>
+                      <button onClick="{{ r.flipOpt }}" title="Toggle CE/PE" style="{{ r.optBtn }}">{{ r.optType }}</button>
+                      <div style="display:flex; align-items:center; height:32px; border:1px solid var(--bd); border-radius:7px; background:var(--field);">
+                        <button onClick="{{ r.qtyDec }}" style="width:26px; height:30px; border:0; background:transparent; cursor:pointer; color:var(--t3); font-size:15px;">−</button>
+                        <span style="flex:1; text-align:center; font-family:var(--font-display); font-weight:600; font-size:12px; font-variant-numeric:tabular-nums; color:var(--t1);">{{ r.qty }}</span>
+                        <button onClick="{{ r.qtyInc }}" style="width:26px; height:30px; border:0; background:transparent; cursor:pointer; color:var(--t3); font-size:15px;">+</button>
+                      </div>
+                      <span style="text-align:right; font-family:var(--font-display); font-size:12px; font-variant-numeric:tabular-nums; color:var(--t3);">{{ r.ltp }}</span>
+                      <input type="number" value="{{ r.price }}" onChange="{{ r.onPrice }}" step="0.05" style="height:32px; width:100%; text-align:right; background:var(--field); border:1px solid var(--bd); border-radius:7px; color:var(--t1); color-scheme:dark; font-family:var(--font-display); font-size:12px; font-weight:600; padding:0 8px; outline:none; font-variant-numeric:tabular-nums;" />
+                      <span style="text-align:right; font-family:var(--font-display); font-weight:600; font-size:12px; font-variant-numeric:tabular-nums; color:{{ r.premColor }};">{{ r.premium }}</span>
+                      <button onClick="{{ r.remove }}" title="Remove leg" style="width:28px; height:28px; display:grid; place-items:center; border:0; border-radius:6px; background:transparent; cursor:pointer; justify-self:end;">
+                        <img src="assets/icons/delete.svg" alt="remove" style="width:14px; height:14px; filter:var(--icon-inv); opacity:.4;" />
+                      </button>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </section>
+          </div>
+        </sc-if>
+      </div>
+
+      <!-- ===== RESULT (right) ===== -->
+      <aside style="flex:1 1 340px; min-width:300px; max-width:400px; position:sticky; top:16px; display:flex; flex-direction:column; gap:14px;">
+
+        <!-- Combined result — single card with hairline dividers -->
+        <section style="background:linear-gradient(180deg, rgba(0,120,206,.12), var(--card)); border:1px solid rgba(120,201,255,.20); border-radius:16px; box-shadow:var(--elev-2); overflow:hidden; display:flex; flex-direction:column;">
+
+          <!-- hero -->
+          <div style="padding:18px;">
+            <div style="font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--t2);">Combined margin requirements</div>
+            <div style="margin-top:7px;">
+              <span style="{{ totalStyle }}">{{ totalMarginStr }}</span>
+            </div>
+            <div style="margin-top:3px; font-size:12px; color:{{ totalCaptionColor }};">{{ totalCaption }}</div>
+            <div style="{{ benefitCalloutStyle }}">
+              <img src="assets/icons/signals.svg" alt="" style="width:15px; height:15px; filter:{{ benefitIconFilter }};" />
+              <span style="flex:1; font-size:12px; color:var(--t2); line-height:1.35;">{{ benefitText }} <span style="font-family:var(--font-display); font-weight:700; color:{{ benefitValueColor }}; font-variant-numeric:tabular-nums;">{{ benefitValueStr }}</span> {{ benefitSuffix }}</span>
+            </div>
+          </div>
+
+          <div style="height:1px; background:var(--bd);"></div>
+
+          <!-- span / exposure / premium -->
+          <div style="padding:15px 18px; display:flex; flex-direction:column; gap:10px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-size:13px; color:var(--t2);">SPAN margin</span>
+              <span style="font-family:var(--font-display); font-weight:600; font-size:13.5px; font-variant-numeric:tabular-nums; color:var(--t1);">{{ spanStr }}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-size:13px; color:var(--t2);">Exposure margin</span>
+              <span style="font-family:var(--font-display); font-weight:600; font-size:13.5px; font-variant-numeric:tabular-nums; color:var(--t1);">{{ expoStr }}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-size:13px; color:var(--t2);">Premium {{ netPremLabel }}</span>
+              <span style="font-family:var(--font-display); font-weight:600; font-size:13.5px; font-variant-numeric:tabular-nums; color:{{ netPremColor }};">{{ netPremStr }}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-size:12px; color:var(--t3);">Sum of legs (un-hedged)</span>
+              <span style="{{ standaloneStyle }}">{{ standaloneStr }}</span>
+            </div>
+          </div>
+
+          <div style="height:1px; background:var(--bd);"></div>
+
+          <!-- per-leg -->
+          <div>
+            <button onClick="{{ toggleBreakdown }}" style="width:100%; display:flex; align-items:center; gap:8px; padding:13px 18px; background:transparent; border:0; cursor:pointer; color:var(--t2);">
+              <span style="flex:1; text-align:left; font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--t3);">Per-leg margin</span>
+              <img src="assets/icons/chevron-down.svg" alt="" style="width:15px; height:15px; filter:var(--icon-inv); opacity:.5; transform:{{ chevronTransform }}; transition:transform 200ms var(--ease-out);" />
+            </button>
+            <sc-if value="{{ showBreakdown }}" hint-placeholder-val="{{ true }}">
+              <div style="padding:0 18px 14px;">
+                <div style="display:grid; grid-template-columns:1.6fr 1fr 1fr; gap:6px; padding:6px 0; border-bottom:1px solid var(--bd); font-size:10px; color:var(--tm); text-transform:uppercase; letter-spacing:.04em;">
+                  <span>Contract</span><span style="text-align:right;">SPAN</span><span style="text-align:right;">Total</span>
+                </div>
+                <sc-for list="{{ breakdownLegs }}" as="b" hint-placeholder-count="4">
+                  <div style="display:grid; grid-template-columns:1.6fr 1fr 1fr; gap:6px; padding:8px 0; border-bottom:1px solid var(--field); align-items:center;">
+                    <div style="display:flex; flex-direction:column; gap:2px; min-width:0;">
+                      <span style="font-family:var(--font-display); font-weight:600; font-size:12px; color:var(--t1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ b.title }}</span>
+                      <span style="font-size:10px;"><span style="{{ b.sideTag }}">{{ b.side }}</span> <span style="color:var(--tm); font-family:var(--font-display); font-variant-numeric:tabular-nums;">×{{ b.qtyStr }}</span></span>
+                    </div>
+                    <span style="text-align:right; font-family:var(--font-display); font-size:11.5px; font-variant-numeric:tabular-nums; color:var(--t3);">{{ b.spanStr }}</span>
+                    <span style="text-align:right; font-family:var(--font-display); font-weight:600; font-size:12px; font-variant-numeric:tabular-nums; color:var(--t1);">{{ b.totalStr }}</span>
+                  </div>
+                </sc-for>
+                <sc-if value="{{ noLegs }}" hint-placeholder-val="{{ false }}">
+                  <div style="padding:14px 0 4px; text-align:center; font-size:11.5px; color:var(--tfaint);">No legs yet — ₹0.00</div>
+                </sc-if>
+              </div>
+            </sc-if>
+          </div>
+        </section>
+
+        <!-- Situational margin warning -->
+        <sc-if value="{{ situationalShow }}" hint-placeholder-val="{{ false }}">
+          <section style="background:rgba(177,102,16,.14); border:1px solid rgba(177,102,16,.4); border-radius:12px; padding:13px;">
+            <div style="font-size:12px; font-weight:600; color:var(--warn-100); margin-bottom:6px;">⚠ Additional margins apply near expiry</div>
+            <div style="display:flex; flex-direction:column; gap:5px;">
+              <sc-for list="{{ situationalItems }}" as="s" hint-placeholder-count="2">
+                <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--t2);">
+                  <span>{{ s.label }}</span>
+                  <span style="font-family:var(--font-display); font-variant-numeric:tabular-nums; color:var(--warn-100);">{{ s.value }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </section>
+        </sc-if>
+
+        <!-- Payoff chart -->
+        <sc-if value="{{ payoffShow }}" hint-placeholder-val="{{ false }}">
+          <section style="background:var(--card); border:1px solid var(--bd); border-radius:14px; padding:16px;">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+              <span style="font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--t3);">Payoff at expiry</span>
+            </div>
+            <svg viewBox="0 0 600 200" preserveAspectRatio="none" style="width:100%; height:150px; display:block;">
+              <path d="{{ payoffProfitPath }}" fill="rgba(124,207,94,.18)" stroke="none"></path>
+              <path d="{{ payoffLossPath }}" fill="rgba(241,66,66,.18)" stroke="none"></path>
+              <line x1="0" y1="{{ zeroY }}" x2="600" y2="{{ zeroY }}" stroke="rgba(245,245,255,.25)" stroke-width="1" stroke-dasharray="4 4"></line>
+              <line x1="{{ spotX }}" y1="0" x2="{{ spotX }}" y2="200" stroke="rgba(120,201,255,.3)" stroke-width="1" stroke-dasharray="3 3"></line>
+              <path d="{{ payoffLinePath }}" fill="none" stroke="var(--nubra-blue-200)" stroke-width="2" stroke-linejoin="round"></path>
+            </svg>
+            <div style="display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:10px; color:var(--tm); margin-top:4px;">
+              <span>{{ xLabLow }}</span><span style="color:var(--nubra-blue-200);">{{ xLabSpot }}</span><span>{{ xLabHigh }}</span>
+            </div>
+            <div style="display:flex; gap:10px; margin-top:12px;">
+              <div style="flex:1; padding:9px 10px; border-radius:9px; background:rgba(124,207,94,.08); border:1px solid rgba(124,207,94,.2);">
+                <div style="font-size:10px; color:var(--tm);">Max profit (in range)</div>
+                <div style="font-family:var(--font-display); font-weight:600; font-size:13px; font-variant-numeric:tabular-nums; color:var(--buy); margin-top:2px;">{{ payoffMaxStr }}</div>
+              </div>
+              <div style="flex:1; padding:9px 10px; border-radius:9px; background:rgba(241,66,66,.08); border:1px solid rgba(241,66,66,.2);">
+                <div style="font-size:10px; color:var(--tm);">Max loss (in range)</div>
+                <div style="font-family:var(--font-display); font-weight:600; font-size:13px; font-variant-numeric:tabular-nums; color:var(--down-500); margin-top:2px;">{{ payoffMinStr }}</div>
+              </div>
+            </div>
+            <div style="margin-top:9px; font-size:11px; color:var(--t3);">Breakeven: <span style="font-family:var(--font-display); color:var(--t2); font-variant-numeric:tabular-nums;">{{ beLabel }}</span></div>
+          </section>
+        </sc-if>
+
+        <div style="font-size:10.5px; color:var(--tfaint); line-height:1.4; padding:0 2px;">Figures are illustrative — SPAN and exposure resolve from the exchange risk file at order time.</div>
+      </aside>
+    </div>
+
+    <!-- ── Educational explainer ──────────────────────────── -->
+    <section style="margin-top:10px; display:flex; justify-content:center;">
+      <div style="max-width:760px; width:100%; display:flex; flex-direction:column; gap:24px;">
+        <div>
+          <h2 style="margin:0 0 10px; font-family:var(--font-display); font-weight:700; font-size:22px; letter-spacing:-.015em; color:var(--t1);">About the Nubra Margin Calculator</h2>
+          <p style="margin:0; font-size:14px; line-height:1.7; color:var(--t2);">The Nubra Margin Calculator helps you work out exactly how much margin you need before taking a futures or options position on NSE, BSE or MCX. Enter the contracts you want to trade — a single leg or a full multi-leg strategy — and it returns the total margin required, split into SPAN and exposure, along with the premium and the margin you save by hedging.</p>
+        </div>
+        <div>
+          <h3 style="margin:0 0 7px; font-family:var(--font-display); font-weight:600; font-size:16px; color:var(--t1);">What is margin in F&amp;O trading?</h3>
+          <p style="margin:0; font-size:14px; line-height:1.7; color:var(--t2);">When you trade futures or options you don't pay the full contract value; you deposit a margin — an amount the exchange requires to cover the risk of your position until it is squared off or settled. The calculator shows that amount up front, so you know whether you have enough funds before placing the order.</p>
+        </div>
+        <div>
+          <h3 style="margin:0 0 7px; font-family:var(--font-display); font-weight:600; font-size:16px; color:var(--t1);">SPAN margin</h3>
+          <p style="margin:0; font-size:14px; line-height:1.7; color:var(--t2);">SPAN (Standard Portfolio Analysis of Risk) is the core margin the exchange charges, based on how your position would behave across a range of possible market moves. It changes through the day as price and volatility move, which is why these figures are indicative until they resolve against the live exchange risk file at order time.</p>
+        </div>
+        <div>
+          <h3 style="margin:0 0 7px; font-family:var(--font-display); font-weight:600; font-size:16px; color:var(--t1);">Exposure margin</h3>
+          <p style="margin:0; font-size:14px; line-height:1.7; color:var(--t2);">Exposure margin is an additional buffer the exchange collects on top of SPAN to cover extreme moves beyond the SPAN range. Your total margin is SPAN + exposure.</p>
+        </div>
+        <div>
+          <h3 style="margin:0 0 7px; font-family:var(--font-display); font-weight:600; font-size:16px; color:var(--t1);">Margin benefit from hedging</h3>
+          <p style="margin:0; font-size:14px; line-height:1.7; color:var(--t2);">When a position has offsetting legs — such as a spread or an iron condor — the legs reduce each other's risk, so the exchange charges far less than the sum of each leg held on its own. That difference is the margin benefit, and it is often the biggest reason to structure a trade as a defined-risk strategy. The calculator shows both the un-hedged sum and the netted requirement so you can see the saving.</p>
+        </div>
+        <div>
+          <h3 style="margin:0 0 7px; font-family:var(--font-display); font-weight:600; font-size:16px; color:var(--t1);">Buying options</h3>
+          <p style="margin:0; font-size:14px; line-height:1.7; color:var(--t2);">If you only buy options there is no SPAN or exposure margin — you simply pay the premium. The calculator reflects this automatically.</p>
+        </div>
+        <div>
+          <h3 style="margin:0 0 9px; font-family:var(--font-display); font-weight:600; font-size:16px; color:var(--t1);">How to use it</h3>
+          <ol style="margin:0; padding-left:20px; font-size:14px; line-height:1.7; color:var(--t2); display:flex; flex-direction:column; gap:6px;">
+            <li>Choose F&amp;O to build a position contract by contract, or Pre-built strategies to start from a ready-made strategy.</li>
+            <li>Pick the exchange, instrument, expiry, option type and strike, set your lots, and choose Buy or Sell.</li>
+            <li>Add each leg — the total margin, SPAN, exposure, premium and hedging benefit update instantly.</li>
+          </ol>
+        </div>
+        <div>
+          <h3 style="margin:0 0 11px; font-family:var(--font-display); font-weight:600; font-size:16px; color:var(--t1);">Frequently asked questions</h3>
+          <div style="display:flex; flex-direction:column; gap:9px;">
+            <details class="nb-faq" style="border:1px solid var(--bd); border-radius:10px; background:var(--card);">
+              <summary style="display:flex; align-items:center; gap:10px; padding:13px 15px;"><span style="flex:1; font-size:14px; font-weight:600; color:var(--t1);">Are these figures exact?</span><img class="nb-faq-chev" src="assets/icons/chevron-down.svg" alt="" style="width:15px; height:15px; filter:var(--icon-inv); opacity:.5;" /></summary>
+              <div style="padding:0 15px 14px; font-size:13.5px; line-height:1.65; color:var(--t2);">They are indicative. SPAN and exposure are risk-based and settle against the exchange's live risk file at order time, so the actual margin can differ slightly.</div>
+            </details>
+            <details class="nb-faq" style="border:1px solid var(--bd); border-radius:10px; background:var(--card);">
+              <summary style="display:flex; align-items:center; gap:10px; padding:13px 15px;"><span style="flex:1; font-size:14px; font-weight:600; color:var(--t1);">Why is my margin lower than the sum of the legs?</span><img class="nb-faq-chev" src="assets/icons/chevron-down.svg" alt="" style="width:15px; height:15px; filter:var(--icon-inv); opacity:.5;" /></summary>
+              <div style="padding:0 15px 14px; font-size:13.5px; line-height:1.65; color:var(--t2);">Hedged legs offset each other's risk, so the exchange nets the requirement down. That difference is the margin benefit shown by the calculator.</div>
+            </details>
+            <details class="nb-faq" style="border:1px solid var(--bd); border-radius:10px; background:var(--card);">
+              <summary style="display:flex; align-items:center; gap:10px; padding:13px 15px;"><span style="flex:1; font-size:14px; font-weight:600; color:var(--t1);">Do I need margin to buy options?</span><img class="nb-faq-chev" src="assets/icons/chevron-down.svg" alt="" style="width:15px; height:15px; filter:var(--icon-inv); opacity:.5;" /></summary>
+              <div style="padding:0 15px 14px; font-size:13.5px; line-height:1.65; color:var(--t2);">No. Buying options requires only the premium. SPAN and exposure apply to short option and futures positions.</div>
+            </details>
+            <details class="nb-faq" style="border:1px solid var(--bd); border-radius:10px; background:var(--card);">
+              <summary style="display:flex; align-items:center; gap:10px; padding:13px 15px;"><span style="flex:1; font-size:14px; font-weight:600; color:var(--t1);">Which segments does it cover?</span><img class="nb-faq-chev" src="assets/icons/chevron-down.svg" alt="" style="width:15px; height:15px; filter:var(--icon-inv); opacity:.5;" /></summary>
+              <div style="padding:0 15px 14px; font-size:13.5px; line-height:1.65; color:var(--t2);">Equity F&amp;O on NSE (NFO) and BSE (BFO), plus commodities on MCX.</div>
+            </details>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Footer ─────────────────────────────────────────── -->
+    <footer style="margin-top:24px; padding-top:22px; border-top:1px solid var(--bd); display:flex; flex-direction:column; align-items:center; gap:12px;">
+      <div style="display:flex; align-items:center; gap:9px;">
+        <img src="assets/logo-mark.svg" alt="Nubra" style="width:22px; height:22px; filter:var(--icon-inv); opacity:.85;" />
+        <span style="font-family:var(--font-display); font-weight:600; font-size:14px; color:var(--t2);">nubra</span>
+        <span style="font-family:var(--font-mono); font-size:9.5px; font-weight:600; letter-spacing:.07em; text-transform:uppercase; color:var(--tm2); padding:2px 7px; border:1px solid var(--bd); border-radius:999px;">v1.0 · API v1.0</span>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:6px; text-align:center; max-width:920px;">
+        <p style="margin:0; font-size:11px; line-height:1.5; color:var(--tm);">Zanskar Securities Private Limited — SEBI registered stock broker (INZ000316631) · Exchange Membership: NSE 90370 | BSE 6870 | CDSL DP Id 12102000</p>
+        <p style="margin:0; font-size:11px; line-height:1.5; color:var(--tm);">4th Floor (Left Wing), Raheja Point 17/2, Magarath Road, Ashok Nagar, Opp Garuda Mall, Bengaluru, Karnataka 560025 · <a href="mailto:compliance@zanskarsec.com" style="color:var(--nubra-blue-200); text-decoration:none;">compliance@zanskarsec.com</a> · +91 86605 00796</p>
+        <p style="margin:0; font-size:11px; line-height:1.5; color:var(--tm);">© 2025 Zanskar Securities Private Limited. All rights reserved. CIN: U64199KA2023PTC17563 · <a href="#" style="color:var(--nubra-blue-200); text-decoration:none;">Privacy Policy</a> · <a href="#" style="color:var(--nubra-blue-200); text-decoration:none;">Terms of Service</a> · <a href="#" style="color:var(--nubra-blue-200); text-decoration:none;">Disclaimer</a></p>
+      </div>
+    </footer>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1240,&quot;height&quot;:900},&quot;showPayoff&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;nearExpiryDemo&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;}}">
+class Component extends DCLogic {
+  static SIGNUP_URL = 'https://nubra.io/';
+  STRATS = {
+    bull_call_spread:  { name: 'Bull Call Spread',  legs: [{ o: 'CE', s: 'BUY', k: 0 }, { o: 'CE', s: 'SELL', k: 1 }] },
+    bear_call_spread:  { name: 'Bear Call Spread',  legs: [{ o: 'CE', s: 'SELL', k: 0 }, { o: 'CE', s: 'BUY', k: 1 }] },
+    bull_put_spread:   { name: 'Bull Put Spread',   legs: [{ o: 'PE', s: 'SELL', k: 0 }, { o: 'PE', s: 'BUY', k: -1 }] },
+    long_straddle:     { name: 'Long Straddle',     legs: [{ o: 'CE', s: 'BUY', k: 0 }, { o: 'PE', s: 'BUY', k: 0 }] },
+    short_straddle:    { name: 'Short Straddle',    legs: [{ o: 'CE', s: 'SELL', k: 0 }, { o: 'PE', s: 'SELL', k: 0 }] },
+    bull_butterfly:    { name: 'Bull Butterfly',    legs: [{ o: 'CE', s: 'BUY', k: 0 }, { o: 'CE', s: 'SELL', k: 1, q: 2 }, { o: 'CE', s: 'BUY', k: 2 }] },
+    bear_butterfly:    { name: 'Bear Butterfly',    legs: [{ o: 'PE', s: 'BUY', k: 0 }, { o: 'PE', s: 'SELL', k: -1, q: 2 }, { o: 'PE', s: 'BUY', k: -2 }] },
+    bull_condor:       { name: 'Bull Condor',       legs: [{ o: 'CE', s: 'BUY', k: 0 }, { o: 'CE', s: 'SELL', k: 1 }, { o: 'CE', s: 'SELL', k: 2 }, { o: 'CE', s: 'BUY', k: 3 }] },
+    bear_condor:       { name: 'Bear Condor',       legs: [{ o: 'PE', s: 'BUY', k: 0 }, { o: 'PE', s: 'SELL', k: -1 }, { o: 'PE', s: 'SELL', k: -2 }, { o: 'PE', s: 'BUY', k: -3 }] },
+    iron_condor:       { name: 'Iron Condor',       legs: [{ o: 'PE', s: 'BUY', k: -2 }, { o: 'PE', s: 'SELL', k: -1 }, { o: 'CE', s: 'SELL', k: 1 }, { o: 'CE', s: 'BUY', k: 2 }] },
+    iron_butterfly:    { name: 'Iron Butterfly',    legs: [{ o: 'PE', s: 'BUY', k: -1 }, { o: 'PE', s: 'SELL', k: 0 }, { o: 'CE', s: 'SELL', k: 0 }, { o: 'CE', s: 'BUY', k: 1 }] },
+  };
+  STRAT_ORDER = ['bull_call_spread','bear_call_spread','bull_put_spread','long_straddle','short_straddle','iron_condor','iron_butterfly','bull_butterfly','bear_butterfly','bull_condor','bear_condor'];
+  MARKET = { NFO: 'NSE', BFO: 'BSE', MCX: 'MCX' };
+
+  md() { return window.MarketData; }
+  fmt(n, dec = 2) { if (n == null || isNaN(n)) return '\u2014'; return '\u20b9' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: dec, maximumFractionDigits: dec }); }
+  fmtInt(n) { return Number(n).toLocaleString('en-IN'); }
+
+  state = {
+    mode: 'fno',
+    strategy: 'iron_condor',
+    pUnderlying: 'NIFTY', pExpiry: '2026-07-31', pWidth: 200, pLots: 1,
+    pLegs: [],
+    legs: [],
+    draft: { exchange: 'NFO', product: 'Options', symbol: 'NIFTY', expiry: '2026-07-31', optionType: 'CE', strike: 24800, lots: 1, side: 'BUY' },
+    editingIndex: null,
+    showBreakdown: true,
+    theme: 'dark',
+  };
+
+  applyTheme(t) {
+    try { document.documentElement.setAttribute('data-theme', t); } catch (e) {}
+  }
+  componentDidMount() {
+    let t = 'dark';
+    try {
+      const saved = localStorage.getItem('nubra-theme');
+      if (saved === 'light' || saved === 'dark') t = saved;
+      else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) t = 'light';
+    } catch (e) {}
+    this.applyTheme(t);
+    const patch = { theme: t };
+    if (this.md() && this.state.pLegs.length === 0) patch.pLegs = this.genPLegs(this.state.strategy, this.state.pUnderlying, this.state.pExpiry, this.state.pWidth, this.state.pLots);
+    this.setState(patch);
+  }
+  toggleTheme() {
+    const t = this.state.theme === 'dark' ? 'light' : 'dark';
+    this.applyTheme(t);
+    try { localStorage.setItem('nubra-theme', t); } catch (e) {}
+    this.setState({ theme: t });
+  }
+
+  genPLegs(strategy, symbol, expiry, width, lots) {
+    const MD = this.md(); const def = this.STRATS[strategy]; const atm = MD._atmOf(symbol);
+    return def.legs.map((d) => {
+      const strike = atm + d.k * width;
+      const price = MD.getQuote(symbol, expiry, strike, d.o).price;
+      return { optType: d.o, side: d.s, strike, lots: lots * (d.q || 1), expiry, price };
+    });
+  }
+
+  positionLegs() {
+    const MD = this.md();
+    if (this.state.mode === 'fno') return this.state.legs;
+    const instr = MD.getInstrument(this.state.pUnderlying);
+    return this.state.pLegs.map((l) => ({
+      exchange: instr.exchange, product: 'Options', symbol: this.state.pUnderlying, expiry: l.expiry,
+      optionType: l.optType, strike: l.strike, tradeType: l.side, lots: l.lots, price: l.price,
+    }));
+  }
+
+  setDraft(patch) { this.setState((s) => ({ draft: { ...s.draft, ...patch } })); }
+  onDraftExchange(ex) { const MD = this.md(); const sym = MD.getInstruments(ex)[0].symbol; const exps = MD.getExpiries(sym).map((e) => e.date); this.setState((s) => ({ draft: { ...s.draft, exchange: ex, symbol: sym, strike: MD._atmOf(sym), expiry: exps.indexOf(s.draft.expiry) >= 0 ? s.draft.expiry : exps[0], lots: 1 } })); }
+  onDraftSymbol(sym) { const MD = this.md(); const exps = MD.getExpiries(sym).map((e) => e.date); this.setState((s) => ({ draft: { ...s.draft, symbol: sym, strike: MD._atmOf(sym), expiry: exps.indexOf(s.draft.expiry) >= 0 ? s.draft.expiry : exps[0], lots: 1 } })); }
+  addDraft() {
+    this.setState((s) => {
+      const d = s.draft; const isOpt = d.product === 'Options';
+      const leg = { exchange: d.exchange, product: d.product, symbol: d.symbol, expiry: d.expiry, optionType: isOpt ? d.optionType : null, strike: isOpt ? d.strike : null, tradeType: d.side, lots: Math.max(1, Math.round(d.lots || 1)) };
+      if (s.editingIndex != null) { const legs = s.legs.map((l, i) => i === s.editingIndex ? leg : l); return { legs, editingIndex: null }; }
+      return { legs: [...s.legs, leg] };
+    });
+  }
+  loadRow(i) { const MD = this.md(); this.setState((s) => { const l = s.legs[i]; return { editingIndex: i, draft: { exchange: l.exchange, product: l.product, symbol: l.symbol, expiry: l.expiry, optionType: l.optionType || 'CE', strike: l.strike != null ? l.strike : MD._atmOf(l.symbol), lots: l.lots, side: l.tradeType } }; }); }
+  cancelEdit() { this.setState({ editingIndex: null }); }
+  resetAll() { this.setState({ legs: [], editingIndex: null }); }
+  quickAddLeg(cfg) { this.setState((s) => ({ legs: [...s.legs, { ...cfg, lots: 1 }], editingIndex: null })); }
+  removeLeg(i) { this.setState((s) => { const legs = s.legs.filter((_, idx) => idx !== i); let e = s.editingIndex; if (e === i) e = null; else if (e != null && e > i) e -= 1; return { legs, editingIndex: e }; }); }
+
+  regen(patch) {
+    this.setState((s) => {
+      const MD = this.md(); const next = { ...s, ...patch };
+      if (patch.pUnderlying) {
+        const instr = MD.getInstrument(next.pUnderlying); const exps = MD.getExpiries(next.pUnderlying).map((e) => e.date);
+        if (exps.indexOf(next.pExpiry) < 0) next.pExpiry = exps.indexOf('2026-07-31') >= 0 ? '2026-07-31' : exps[0];
+        if (patch.pWidth == null) next.pWidth = instr.strikeStep * (instr.segment === 'index' ? 4 : 2);
+      }
+      const pLegs = this.genPLegs(next.strategy, next.pUnderlying, next.pExpiry, next.pWidth, next.pLots);
+      return { ...patch, pExpiry: next.pExpiry, pWidth: next.pWidth, pLegs };
+    });
+  }
+  updatePLeg(i, patch) { this.setState((s) => ({ pLegs: s.pLegs.map((l, idx) => idx === i ? { ...l, ...patch } : l) })); }
+  pLegStrike(i, dir) { this.setState((s) => { const MD = this.md(); const step = MD.getInstrument(s.pUnderlying).strikeStep; const pLegs = s.pLegs.map((l, idx) => { if (idx !== i) return l; const strike = Math.max(step, l.strike + dir * step); const price = MD.getQuote(s.pUnderlying, l.expiry, strike, l.optType).price; return { ...l, strike, price }; }); return { pLegs }; }); }
+  pLegFlipOpt(i) { this.setState((s) => { const MD = this.md(); const pLegs = s.pLegs.map((l, idx) => { if (idx !== i) return l; const optType = l.optType === 'CE' ? 'PE' : 'CE'; const price = MD.getQuote(s.pUnderlying, l.expiry, l.strike, optType).price; return { ...l, optType, price }; }); return { pLegs }; }); }
+  pLegExpiry(i, expiry) { this.setState((s) => { const MD = this.md(); const pLegs = s.pLegs.map((l, idx) => { if (idx !== i) return l; const price = MD.getQuote(s.pUnderlying, expiry, l.strike, l.optType).price; return { ...l, expiry, price }; }); return { pLegs }; }); }
+  removePLeg(i) { this.setState((s) => ({ pLegs: s.pLegs.filter((_, idx) => idx !== i) })); }
+
+  tabStyle(active) { const base = 'height:34px; padding:0 18px; border-radius:999px; border:0; cursor:pointer; font-family:var(--font-sans); font-weight:500; font-size:13px; transition:all 120ms var(--ease-out); '; return base + (active ? 'background:var(--nubra-blue-400); color:#fff;' : 'background:transparent; color:var(--t3);'); }
+  draftSideStyle(active, side) { const c = side === 'BUY' ? 'var(--up-600)' : 'var(--down-600)'; const base = 'width:60px; height:40px; border:0; cursor:pointer; font-family:var(--font-sans); font-weight:700; font-size:13px; '; return base + (active ? ('background:' + c + '; color:#fff;') : 'background:transparent; color:var(--t3);'); }
+  widthBtnStyle(active) { const base = 'height:30px; padding:0 13px; border-radius:7px; cursor:pointer; font-family:var(--font-display); font-weight:600; font-size:12.5px; font-variant-numeric:tabular-nums; '; return base + (active ? 'background:var(--nubra-blue-400); color:#fff; border:1px solid var(--nubra-blue-400);' : 'background:var(--chip); color:var(--t2); border:1px solid var(--bd);'); }
+  sideTag(side) { const c = side === 'BUY' ? 'var(--up-300)' : 'var(--down-500)'; const bg = side === 'BUY' ? 'rgba(124,207,94,.15)' : 'rgba(241,66,66,.15)'; return 'display:inline-flex; align-items:center; justify-content:center; height:22px; padding:0 8px; border-radius:5px; font-family:var(--font-sans); font-weight:600; font-size:11px; background:' + bg + '; color:' + c + '; width:max-content;'; }
+  sideBtn(side) { const c = side === 'BUY' ? 'var(--up-600)' : 'var(--down-600)'; return 'width:46px; height:30px; border:0; border-radius:7px; cursor:pointer; font-family:var(--font-sans); font-weight:700; font-size:12px; color:#fff; background:' + c + ';'; }
+  optBtn(opt) { const c = opt === 'CE' ? 'var(--nubra-blue-200)' : 'var(--nubra-violet-700)'; const bg = opt === 'CE' ? 'rgba(0,120,206,.16)' : 'rgba(110,70,200,.18)'; return 'width:46px; height:28px; border:1px solid ' + c + '; border-radius:6px; cursor:pointer; font-family:var(--font-display); font-weight:600; font-size:12px; color:' + c + '; background:' + bg + ';'; }
+  legTitle(l) { if (l.product === 'Futures') return l.symbol + ' FUT'; return l.symbol + ' ' + this.fmtInt(l.strike) + ' ' + l.optionType; }
+
+  renderVals() {
+    const MD = this.md(); const S = this.state; const isFno = S.mode === 'fno';
+    if (!MD) return { isFno, isPrebuilt: !isFno, noLegs: true, showEmpty: true };
+    const legs = this.positionLegs();
+    const resp = MD.calcMargin(legs); const m = resp.margin; const pm = resp.positionMargin;
+    const hasLegs = legs.length > 0; const multiLeg = legs.length >= 2;
+    const tpm = resp.totalPositionMargin; const benefit = m.marginBenefit;
+    const benefitMeaningful = multiLeg && benefit >= tpm * 0.01 && benefit > 1;
+    const shortSome = legs.some((l) => (l.product === 'Options' && l.tradeType === 'SELL') || l.product === 'Futures');
+    const longSome = legs.some((l) => l.product === 'Options' && l.tradeType === 'BUY');
+    const benefitNegligible = multiLeg && !benefitMeaningful && shortSome && longSome;
+    const pct = tpm > 0 ? (benefit / tpm) * 100 : 0;
+    const received = m.netPremium < 0;
+
+    const expForDraft = MD.getExpiries(S.draft.symbol);
+    const expiryOptions = expForDraft.map((e) => ({ value: e.date, label: e.label }));
+    const expForP = MD.getExpiries(S.pUnderlying);
+    const expiryShortOptions = expForP.map((e) => ({ value: e.date, label: e.short }));
+    const underlyingOptions = MD.getInstruments().map((i) => ({ value: i.symbol, label: i.symbol }));
+    const optTypeOptions = [{ value: 'CE', label: 'CE' }, { value: 'PE', label: 'PE' }];
+
+    const d = S.draft; const dIsOpt = d.product === 'Options'; const dInstr = MD.getInstrument(d.symbol); const dLot = dInstr.lotSize;
+    const dStrikes = MD.getStrikes(d.symbol, d.expiry);
+
+    const fnoRows = isFno ? legs.map((l, i) => { const p = pm[i]; const isOpt = l.product === 'Options'; return {
+      exchange: l.exchange, symbol: l.symbol, product: p.product,
+      strike: isOpt ? this.fmtInt(l.strike) : '\u2014', side: l.tradeType, sideTag: this.sideTag(l.tradeType),
+      optType: isOpt ? l.optionType : '\u2014', qty: this.fmtInt(p.qty),
+      initial: this.fmt(p.SPANMargin, 0), exposure: this.fmt(p.exposureMargin, 0), total: this.fmt(p.totalMargin, 0),
+      rowStyle: 'display:grid; grid-template-columns:minmax(96px,1.3fr) 74px 50px 58px 64px 1fr 1fr 1fr 30px; gap:8px; padding:10px 2px; border-bottom:1px solid var(--field); align-items:center; cursor:pointer; border-radius:8px; animation:nbFade 200ms var(--ease-out); ' + (S.editingIndex === i ? 'background:rgba(0,120,206,.12); box-shadow:inset 0 0 0 1px rgba(120,201,255,.3);' : ''),
+      edit: () => this.loadRow(i), remove: (ev) => { if (ev && ev.stopPropagation) ev.stopPropagation(); this.removeLeg(i); },
+    }; }) : [];
+
+    const instr = MD.getInstrument(S.pUnderlying); const up = instr.change >= 0;
+    const strategyOptions = this.STRAT_ORDER.map((k) => ({ value: k, label: this.STRATS[k].name }));
+    const stepP = instr.strikeStep;
+    const widthList = [1, 2, 4, 6].map((mu) => { const w = stepP * mu; return { label: this.fmtInt(w), style: this.widthBtnStyle(S.pWidth === w), onSelect: () => this.regen({ pWidth: w }) }; });
+
+    const pRows = (!isFno) ? legs.map((l, i) => { const p = pm[i]; const premSigned = (l.tradeType === 'SELL' ? 1 : -1) * l.price * p.qty; return {
+      side: l.tradeType, sideShort: l.tradeType === 'BUY' ? 'B' : 'S', sideBtn: this.sideBtn(l.tradeType),
+      expiry: l.expiry, strike: this.fmtInt(l.strike), optType: l.optionType, optBtn: this.optBtn(l.optionType),
+      qty: this.fmtInt(p.qty), ltp: this.fmt(MD.getQuote(S.pUnderlying, l.expiry, l.strike, l.optionType).ltp, 2), price: l.price,
+      premium: (premSigned >= 0 ? '+' : '\u2212') + this.fmt(Math.abs(premSigned), 0).slice(1), premColor: premSigned >= 0 ? 'var(--buy)' : 'var(--down-500)',
+      flipSide: () => this.updatePLeg(i, { side: l.tradeType === 'BUY' ? 'SELL' : 'BUY' }), flipOpt: () => this.pLegFlipOpt(i),
+      onExpiry: (v) => this.pLegExpiry(i, v),
+      strikeInc: () => this.pLegStrike(i, 1), strikeDec: () => this.pLegStrike(i, -1),
+      qtyInc: () => this.updatePLeg(i, { lots: l.lots + 1 }), qtyDec: () => this.updatePLeg(i, { lots: Math.max(1, l.lots - 1) }),
+      onPrice: (ev) => this.updatePLeg(i, { price: Math.max(0, parseFloat(ev.target.value) || 0) }), remove: () => this.removePLeg(i),
+    }; }) : [];
+
+    const breakdownLegs = legs.map((l, i) => { const p = pm[i]; return { title: this.legTitle(l), side: l.tradeType, sideTag: this.sideTag(l.tradeType), qtyStr: this.fmtInt(p.qty), spanStr: this.fmt(p.SPANMargin, 0), totalStr: this.fmt(p.totalMargin, 0) }; });
+
+    const showPayoff = (this.props.showPayoff != null ? this.props.showPayoff : true) && multiLeg && legs.some((l) => l.product === 'Options');
+    let pf = {};
+    if (showPayoff) {
+      const en = legs.map((l, i) => ({ product: l.product, optionType: l.optionType, strike: l.strike, tradeType: l.tradeType, qty: pm[i].qty, premium: l.price != null ? l.price : MD.getQuote(l.symbol, l.expiry, l.strike, l.optionType).price }));
+      const spot = MD.getInstrument(legs[0].symbol).spot;
+      const minS = spot * 0.82, maxS = spot * 1.18; const N = 80, W = 600, H = 200, padY = 22;
+      const pnlAt = (x) => { let t = 0; for (const l of en) { const q = l.qty; if (l.product === 'Futures') { t += (l.tradeType === 'BUY' ? (x - spot) : (spot - x)) * q; } else { const intr = l.optionType === 'CE' ? Math.max(x - l.strike, 0) : Math.max(l.strike - x, 0); t += (l.tradeType === 'BUY' ? (intr - l.premium) : (l.premium - intr)) * q; } } return t; };
+      const pts = []; for (let k = 0; k <= N; k++) { const x = minS + (maxS - minS) * k / N; pts.push({ x, p: pnlAt(x) }); }
+      const maxAbs = Math.max(1, ...pts.map((o) => Math.abs(o.p)));
+      const xs = (x) => ((x - minS) / (maxS - minS)) * W; const zeroY = H / 2; const ys = (p) => zeroY - (p / maxAbs) * (H / 2 - padY);
+      const linePath = 'M' + pts.map((o) => xs(o.x).toFixed(1) + ' ' + ys(o.p).toFixed(1)).join(' L');
+      let prof = 'M ' + xs(minS).toFixed(1) + ' ' + zeroY; pts.forEach((o) => { prof += ' L ' + xs(o.x).toFixed(1) + ' ' + Math.min(ys(o.p), zeroY).toFixed(1); }); prof += ' L ' + xs(maxS).toFixed(1) + ' ' + zeroY + ' Z';
+      let loss = 'M ' + xs(minS).toFixed(1) + ' ' + zeroY; pts.forEach((o) => { loss += ' L ' + xs(o.x).toFixed(1) + ' ' + Math.max(ys(o.p), zeroY).toFixed(1); }); loss += ' L ' + xs(maxS).toFixed(1) + ' ' + zeroY + ' Z';
+      const maxP = Math.max(...pts.map((o) => o.p)); const minP = Math.min(...pts.map((o) => o.p));
+      const bes = []; for (let k = 1; k < pts.length; k++) { const a = pts[k - 1], b = pts[k]; if ((a.p <= 0 && b.p > 0) || (a.p >= 0 && b.p < 0)) { const t = Math.abs(a.p) / (Math.abs(a.p) + Math.abs(b.p)); bes.push(a.x + (b.x - a.x) * t); } }
+      pf = { payoffLinePath: linePath, payoffProfitPath: prof, payoffLossPath: loss, zeroY, spotX: xs(spot).toFixed(1), payoffMaxStr: this.fmt(maxP, 0), payoffMinStr: this.fmt(minP, 0), beLabel: bes.length ? bes.map((b) => this.fmtInt(Math.round(b))).join('  /  ') : '\u2014', xLabLow: this.fmtInt(Math.round(minS)), xLabSpot: this.fmtInt(Math.round(spot)), xLabHigh: this.fmtInt(Math.round(maxS)) };
+    }
+
+    const situationalShow = !!(this.props.nearExpiryDemo) && hasLegs;
+    const situationalItems = situationalShow ? [
+      { label: 'Delivery margin', value: this.fmt(pm.reduce((a, p) => a + (((p.tradeType === 'SELL' && p.optionType) || p.product.indexOf('FUT') === 0) ? p.SPANMargin * 0.5 : 0), 0), 0) },
+      { label: 'Additional pre-expiry', value: this.fmt(pm.reduce((a, p) => a + (((p.tradeType === 'SELL' && p.optionType) || p.product.indexOf('FUT') === 0) ? p.exposureMargin * 0.2 : 0), 0), 0) },
+    ] : [];
+
+    // benefit callout (always present; emphasised only when meaningful)
+    const benefitGreen = 'display:flex; align-items:center; gap:9px; margin-top:12px; padding:9px 11px; border-radius:10px; background:rgba(124,207,94,.12); border:1px solid rgba(124,207,94,.28);';
+    const benefitNeutral = 'display:flex; align-items:center; gap:9px; margin-top:12px; padding:9px 11px; border-radius:10px; background:var(--chip); border:1px solid var(--bd);';
+    let benefitCalloutStyle, benefitIconFilter, benefitText, benefitValueStr, benefitValueColor, benefitSuffix;
+    if (benefitMeaningful) {
+      benefitCalloutStyle = benefitGreen;
+      benefitIconFilter = 'brightness(0) invert(1) sepia(1) hue-rotate(60deg) saturate(3); opacity:.8';
+      benefitText = 'Hedging saves'; benefitValueStr = this.fmt(benefit, 0); benefitValueColor = 'var(--buy)';
+      benefitSuffix = '(' + pct.toFixed(0) + '%) in margin.';
+    } else {
+      benefitCalloutStyle = benefitNeutral;
+      benefitIconFilter = 'brightness(0) invert(1); opacity:.38';
+      benefitText = 'Hedging benefit'; benefitValueStr = this.fmt(benefit > 0 ? benefit : 0, 0); benefitValueColor = 'var(--t2)';
+      benefitSuffix = benefitNegligible ? '\u2014 negligible offset.' : '';
+    }
+    const standaloneStyle = 'font-family:var(--font-display); font-weight:500; font-size:12.5px; font-variant-numeric:tabular-nums; color:var(--t3);' + (multiLeg ? ' text-decoration:line-through;' : '');
+
+    // hero conditional (CHANGE C)
+    const totalStyle = 'font-family:var(--font-display); font-size:34px; letter-spacing:-.02em; font-variant-numeric:tabular-nums;' + (hasLegs ? ' font-weight:700; color:var(--t1);' : ' font-weight:400; color:var(--t3);');
+    const totalCaption = hasLegs ? 'total margin' : 'Add a contract to calculate margin.';
+    const totalCaptionColor = hasLegs ? 'var(--t3)' : 'var(--t2)';
+
+    // quick-add chips (CHANGE B) — sourced from the mock DB
+    const qaDefs = [
+      { symbol: 'NIFTY', product: 'Options', optionType: 'CE', side: 'BUY' },
+      { symbol: 'NIFTY', product: 'Futures', side: 'BUY' },
+      { symbol: 'BANKNIFTY', product: 'Options', optionType: 'PE', side: 'SELL' },
+      { symbol: 'RELIANCE', product: 'Futures', side: 'BUY' },
+    ];
+    const quickAdds = qaDefs.map((c) => {
+      const inst = MD.getInstrument(c.symbol);
+      const strike = c.product === 'Options' ? MD._atmOf(c.symbol) : null;
+      const label = c.symbol + (c.product === 'Futures' ? ' FUT' : (' ' + this.fmtInt(strike) + ' ' + c.optionType));
+      const leg = { exchange: inst.exchange, product: c.product, symbol: c.symbol, expiry: '2026-07-31', optionType: c.product === 'Options' ? c.optionType : null, strike, tradeType: c.side };
+      return { label, add: () => this.quickAddLeg(leg) };
+    });
+
+    return {
+      isFno, isPrebuilt: !isFno,
+      setModeFno: () => this.setState({ mode: 'fno' }),
+      setModePrebuilt: () => { if (this.state.pLegs.length === 0) this.regen({}); this.setState({ mode: 'prebuilt' }); },
+      tabFnoStyle: this.tabStyle(isFno), tabPrebuiltStyle: this.tabStyle(!isFno),
+      expiryOptions, expiryShortOptions, underlyingOptions, optTypeOptions,
+      activeLegCount: legs.length, hasLegs, noLegs: !hasLegs,
+      themeIcon: this.state.theme === 'dark' ? '☾' : '☀',
+      isDark: this.state.theme === 'dark', isLight: this.state.theme !== 'dark',
+      signupUrl: Component.SIGNUP_URL,
+      onToggleTheme: () => this.toggleTheme(),
+      tickerItems: MD.getTickerQuotes().map((t) => ({
+        symbol: t.symbol,
+        price: this.fmtInt(t.price),
+        delta: (t.up ? '▲ +' : '▼ ') + Math.abs(t.change).toFixed(2) + ' (' + (t.up ? '+' : '−') + Math.abs(t.changePct).toFixed(2) + '%)',
+        color: t.up ? 'var(--buy)' : 'var(--sell)',
+      })),
+      quickAdds,
+      totalStyle, totalCaption, totalCaptionColor,
+      ghostSymbol: 'NIFTY', ghostSub: 'NFO · OPTIDX', ghostStrike: this.fmtInt(this.INSTR ? 24800 : 24800), ghostOpt: 'CE', ghostSide: 'Buy', ghostSideTag: this.sideTag('BUY'), ghostQty: '75',
+      dExchange: d.exchange, dProduct: d.product, dSymbol: d.symbol, dExpiry: d.expiry,
+      dOptType: d.optionType, dStrike: String(d.strike), dIsOpt, dLot, dLotStr: this.fmtInt(dLot),
+      dLots: d.lots, dQtyStr: this.fmtInt(d.lots * dLot),
+      isEditing: S.editingIndex != null, formTitle: S.editingIndex != null ? 'Edit contract' : 'Add a contract', addLabel: S.editingIndex != null ? 'Update' : 'Add',
+      onCancelEdit: () => this.cancelEdit(),
+      dExchangeOptions: MD.getExchanges().map((x) => ({ value: x, label: x })),
+      dProductOptions: MD.getProducts(d.exchange).map((x) => ({ value: x, label: x })),
+      dSymbolOptions: MD.getInstruments(d.exchange).map((i) => ({ value: i.symbol, label: i.symbol })),
+      dStrikeOptions: dStrikes.map((s) => ({ value: String(s.strike), label: this.fmtInt(s.strike) })),
+      dBuyStyle: this.draftSideStyle(d.side === 'BUY', 'BUY'), dSellStyle: this.draftSideStyle(d.side === 'SELL', 'SELL'),
+      onDExchange: (v) => this.onDraftExchange(v),
+      onDProduct: (v) => this.setDraft({ product: v }),
+      onDSymbol: (v) => this.onDraftSymbol(v),
+      onDExpiry: (v) => this.setDraft({ expiry: v }),
+      onDOptType: (v) => this.setDraft({ optionType: v }),
+      onDStrike: (v) => this.setDraft({ strike: parseFloat(v) }),
+      onDLotsInc: () => this.setDraft({ lots: d.lots + 1 }), onDLotsDec: () => this.setDraft({ lots: Math.max(1, d.lots - 1) }),
+      setDBuy: () => this.setDraft({ side: 'BUY' }), setDSell: () => this.setDraft({ side: 'SELL' }),
+      onAddDraft: () => this.addDraft(), onResetAll: () => this.resetAll(), fnoRows,
+      pUnderlying: S.pUnderlying, pStrategy: S.strategy,
+      pPriceStr: this.fmtInt(instr.spot) + '.00',
+      pChgStr: (up ? '\u25b2 +' : '\u25bc ') + instr.change.toFixed(2) + '  (' + instr.changePct.toFixed(2) + '%)',
+      pChgColor: up ? 'var(--buy)' : 'var(--down-500)', pMarket: this.MARKET[instr.exchange],
+      strategyOptions, widthList,
+      onPUnderlying: (v) => this.regen({ pUnderlying: v }),
+      onPStrategy: (v) => this.regen({ strategy: v }), pRows,
+      totalMarginStr: this.fmt(m.totalMargin), spanStr: this.fmt(m.SPANMargin), expoStr: this.fmt(m.exposureMargin), standaloneStr: this.fmt(tpm), standaloneStyle,
+      multiLeg,
+      benefitCalloutStyle, benefitIconFilter, benefitText, benefitValueStr, benefitValueColor, benefitSuffix,
+      netPremStr: this.fmt(Math.abs(m.netPremium)), netPremLabel: (Math.abs(m.netPremium) < 0.005) ? '' : (received ? 'received' : 'paid'), netPremColor: (Math.abs(m.netPremium) < 0.005) ? 'var(--t1)' : (received ? 'var(--buy)' : 'var(--down-500)'),
+      breakdownLegs,
+      showBreakdown: S.showBreakdown, toggleBreakdown: () => this.setState((s) => ({ showBreakdown: !s.showBreakdown })), chevronTransform: S.showBreakdown ? 'rotate(180deg)' : 'rotate(0deg)',
+      payoffShow: showPayoff, ...pf,
+      situationalShow, situationalItems,
+    };
+  }
+}
+</script>
+</body>
+</html>

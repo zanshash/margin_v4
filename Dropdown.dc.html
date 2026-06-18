@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div ref="{{ rootRef }}" style="position:relative; width:100%; font-family:var(--font-sans);">
+  <button type="button" onClick="{{ toggle }}" style="{{ triggerStyle }}">
+    <span style="flex:1; min-width:0; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ label }}</span>
+    <img src="assets/icons/chevron-down.svg" alt="" style="width:14px; height:14px; flex:none; filter:var(--icon-inv); opacity:.55; transition:transform 150ms var(--ease-out); transform:{{ chevronT }};" />
+  </button>
+  <sc-if value="{{ open }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute; z-index:60; top:calc(100% + 5px); left:0; min-width:100%; max-height:248px; overflow-y:auto; overflow-x:hidden; background:var(--menu-bg); border:1px solid var(--bd); border-radius:9px; box-shadow:0 12px 32px rgba(0,0,0,.55); padding:5px; display:flex; flex-direction:column; gap:2px;">
+      <sc-for list="{{ rows }}" as="o" hint-placeholder-count="4">
+        <div onClick="{{ o.pick }}" style="{{ o.rowStyle }}" style-hover="background:var(--ddhover); color:#ffffff;">{{ o.label }}</div>
+      </sc-for>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:220,&quot;height&quot;:44},&quot;value&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;options&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;{value:string,label:string}[]&quot;},&quot;onChange&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(value:string)=&gt;void&quot;},&quot;variant&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;field&quot;,&quot;row&quot;,&quot;header&quot;,&quot;strategy&quot;],&quot;default&quot;:&quot;field&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;placeholder&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Select&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  state = { open: false };
+  rootRef = React.createRef();
+  componentDidMount() {
+    this._h = (e) => { const r = this.rootRef.current; if (r && !r.contains(e.target)) this.setState({ open: false }); };
+    document.addEventListener("mousedown", this._h, true);
+  }
+  componentWillUnmount() { document.removeEventListener("mousedown", this._h, true); }
+  trigger(v) {
+    const base = "display:flex; align-items:center; gap:6px; width:100%; cursor:pointer; color:var(--trigger-text); background:var(--field); border:1px solid var(--bd); outline:none; font-family:var(--font-sans); ";
+    if (v === "row") return base + "height:32px; padding:0 8px; border-radius:7px; font-size:11.5px; font-weight:500;";
+    if (v === "header") return base + "height:40px; padding:0 10px; border-radius:8px; font-size:15px; font-weight:700; font-family:var(--font-display);";
+    if (v === "strategy") return "display:flex; align-items:center; gap:6px; width:100%; cursor:pointer; color:var(--trigger-text); background:rgba(0,120,206,.16); border:1px solid var(--nubra-blue-200); outline:none; height:40px; padding:0 12px; border-radius:8px; font-size:14px; font-weight:600; font-family:var(--font-sans);";
+    return base + "height:38px; padding:0 10px; border-radius:8px; font-size:13px; font-weight:500;";
+  }
+  renderVals() {
+    const opts = this.props.options || [];
+    const val = this.props.value;
+    const variant = this.props.variant || "field";
+    const sel = opts.find((o) => String(o.value) === String(val));
+    const rowBase = "display:flex; align-items:center; padding:8px 10px; border-radius:6px; cursor:pointer; font-size:13px; line-height:1.2; color:var(--menu-text); white-space:nowrap;";
+    const selCss = " color:var(--nubra-blue-200); font-weight:600; box-shadow:inset 2px 0 0 var(--nubra-blue-200); background:rgba(0,120,206,.1);";
+    const rows = opts.map((o) => {
+      const s = String(o.value) === String(val);
+      return {
+        label: o.label,
+        rowStyle: rowBase + (s ? selCss : ""),
+        pick: () => { this.setState({ open: false }); if (this.props.onChange) this.props.onChange(o.value); },
+      };
+    });
+    return {
+      label: sel ? sel.label : (this.props.placeholder || "Select"),
+      open: this.state.open,
+      toggle: () => this.setState((st) => ({ open: !st.open })),
+      triggerStyle: this.trigger(variant),
+      chevronT: this.state.open ? "rotate(180deg)" : "rotate(0deg)",
+      rootRef: this.rootRef,
+      rows,
+    };
+  }
+}
+</script>
+</body>
+</html>

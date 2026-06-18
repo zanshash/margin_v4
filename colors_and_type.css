@@ -1,0 +1,137 @@
+/* Nubra Design System — Colors & Type tokens
+   Source: Nubra Figma design system (extracted via virtual filesystem). */
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Geist:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap");
+
+:root {
+  /* ─── Brand & Primary (Nubra Blue) ──────────────────────────── */
+  --nubra-blue-50:  rgb(239, 247, 255);
+  --nubra-blue-100: rgb(223, 240, 255);
+  --nubra-blue-200: rgb(120, 201, 255);
+  --nubra-blue-400: rgb(0, 120, 206);
+  --nubra-blue-600: rgb(0, 118, 196);
+  --nubra-blue-700: rgb(5, 80, 135);
+  --nubra-blue-accent: rgb(110, 131, 251); /* indigo accent (signals/AI) */
+  --nubra-violet-700: rgb(88, 111, 237);
+
+  /* ─── Trading semantic — Up / Buy / Profit (Green) ──────────── */
+  --up-50:  rgb(232, 248, 235);
+  --up-100: rgb(149, 220, 122);
+  --up-300: rgb(124, 207, 94);
+  --up-500: rgb(84, 186, 124);
+  --up-600: rgb(81, 176, 50);
+  --up-700: rgb(60, 140, 36);
+  --up-800: rgb(59, 146, 0);
+
+  /* ─── Trading semantic — Down / Sell / Loss (Red) ───────────── */
+  --down-50:  rgb(254, 235, 235);
+  --down-300: rgb(246, 60, 60);
+  --down-500: rgb(241, 66, 66);
+  --down-600: rgb(231, 0, 0);
+  --down-700: rgb(222, 36, 36);
+  --down-800: rgb(192, 27, 27);
+
+  /* ─── Warning / Gold (commodities) ──────────────────────────── */
+  --warn-500: rgb(177, 102, 16);
+  --warn-100: rgb(255, 237, 213);
+
+  /* ─── Neutrals — Light surface ──────────────────────────────── */
+  --bg-canvas:    rgb(245, 245, 255); /* most-used color in figma */
+  --bg-surface:   rgb(248, 250, 252);
+  --bg-card:      rgb(255, 255, 255);
+  --bg-subtle:    rgb(229, 230, 241);
+  --border-subtle: rgba(0, 0, 0, 0.08);
+  --border-default: rgba(0, 0, 0, 0.12);
+  --border-strong: rgb(216, 222, 228);
+  --divider:      rgb(217, 217, 217);
+
+  /* ─── Foreground (text) ─────────────────────────────────────── */
+  --fg-1: rgb(22, 28, 34);   /* primary text */
+  --fg-2: rgb(78, 88, 96);   /* body text   */
+  --fg-3: rgb(94, 94, 118);  /* secondary   */
+  --fg-4: rgb(118, 130, 143);/* tertiary    */
+  --fg-5: rgb(155, 166, 176);/* placeholder */
+  --fg-on-primary: rgb(239, 247, 255);
+
+  /* ─── Trading dark canvas (chart screens / app) ─────────────── */
+  --dark-canvas: rgb(6, 10, 15);
+  --dark-surface: rgb(8, 8, 8);
+  --dark-fg-1: rgb(245, 245, 255);
+  --dark-fg-2: rgb(155, 166, 176);
+  --dark-fg-3: rgb(118, 130, 143);
+  --dark-border: rgba(245, 245, 255, 0.08);
+  /* Nubra signature ambient gradient — used on app canvas */
+  --dark-ambient: radial-gradient(rgba(25,111,82,0.6) 0%, rgba(27,83,129,0.6) 40%, rgba(6,10,15,0.6) 100%), linear-gradient(rgb(6,10,15),rgb(6,10,15));
+
+  /* ─── Type families ────────────────────────────────────────── */
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-display: "Geist", "Inter", sans-serif;          /* numerics + dense UI */
+  --font-mono: "JetBrains Mono", ui-monospace, monospace; /* prices, ticks */
+
+  /* ─── Type scale (Inter-based) ────────────────────────────── */
+  --t-h1: 700 40px/1.1 var(--font-sans);
+  --t-h2: 700 32px/1.15 var(--font-sans);
+  --t-h3: 600 24px/1.2 var(--font-sans);
+  --t-h4: 600 20px/1.25 var(--font-sans);
+  --t-h5: 600 18px/1.3 var(--font-sans);
+  --t-h6: 600 16px/1.35 var(--font-sans);
+  --t-body-l: 500 16px/1.4 var(--font-sans);
+  --t-body-m: 500 14px/1.45 var(--font-sans);
+  --t-body-s: 400 12px/1.5 var(--font-sans);
+  --t-label-m: 500 12px/1 var(--font-sans);
+  --t-label-s: 500 10px/1 var(--font-sans);
+  --t-mono-m: 500 12px/1.2 var(--font-mono);
+  --t-mono-l: 500 14px/1.2 var(--font-mono);
+
+  /* ─── Spacing (4px grid) ───────────────────────────────────── */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-7: 32px;
+  --sp-8: 40px;
+  --sp-9: 64px;
+  --sp-10: 80px;
+
+  /* ─── Radii ────────────────────────────────────────────────── */
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --r-xl: 16px;
+  --r-pill: 999px;
+
+  /* ─── Elevation ────────────────────────────────────────────── */
+  --elev-1: 0 1px 2px rgba(22,28,34,.06);
+  --elev-2: 0 4px 12px rgba(22,28,34,.08);
+  --elev-3: 0 12px 32px rgba(22,28,34,.12);
+  --elev-glow-blue: 0 0 0 4px rgba(0,120,206,.18);
+  --elev-glow-green: 0 0 0 4px rgba(81,176,50,.18);
+  --elev-glow-red: 0 0 0 4px rgba(241,66,66,.18);
+
+  /* ─── Motion ───────────────────────────────────────────────── */
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+}
+
+/* ─── Semantic element styles ───────────────────────────────── */
+.nubra-h1 { font: var(--t-h1); color: var(--fg-1); letter-spacing: -0.02em; }
+.nubra-h2 { font: var(--t-h2); color: var(--fg-1); letter-spacing: -0.015em; }
+.nubra-h3 { font: var(--t-h3); color: var(--fg-1); letter-spacing: -0.01em; }
+.nubra-h4 { font: var(--t-h4); color: var(--fg-1); }
+.nubra-h5 { font: var(--t-h5); color: var(--fg-1); }
+.nubra-h6 { font: var(--t-h6); color: var(--fg-1); }
+.nubra-body-l { font: var(--t-body-l); color: var(--fg-2); }
+.nubra-body-m { font: var(--t-body-m); color: var(--fg-2); }
+.nubra-body-s { font: var(--t-body-s); color: var(--fg-3); }
+.nubra-label-m { font: var(--t-label-m); color: var(--fg-3); }
+.nubra-label-s { font: var(--t-label-s); color: var(--fg-4); text-transform: uppercase; letter-spacing: 0.04em; }
+.nubra-mono { font: var(--t-mono-m); color: var(--fg-1); font-variant-numeric: tabular-nums; }
+
+.nubra-up { color: var(--up-700); }
+.nubra-down { color: var(--down-700); }
