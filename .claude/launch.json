@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "vercel-dev",
+      "runtimeExecutable": "C:\\Users\\Harsh\\AppData\\Roaming\\npm\\vercel.cmd",
+      "runtimeArgs": ["dev", "--yes"],
+      "port": 3000
+    }
+  ]
+}

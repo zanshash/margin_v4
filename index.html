@@ -45,6 +45,7 @@
   select option { background-color:var(--menu-bg); color:var(--trigger-text); }
   select option:checked { background:#0a4a7a; color:#fff; }
   @keyframes nbFade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  @keyframes nbPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
   @keyframes nbMarquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
   .nb-ticker { overflow: hidden; }
   .nb-ticker-track { display: inline-flex; white-space: nowrap; animation: nbMarquee 48s linear infinite; will-change: transform; }
@@ -579,7 +580,7 @@
       </div>
       <div style="display:flex; flex-direction:column; gap:6px; text-align:center; max-width:920px;">
         <p style="margin:0; font-size:11px; line-height:1.5; color:var(--tm);">Zanskar Securities Private Limited — SEBI registered stock broker (INZ000316631) · Exchange Membership: NSE 90370 | BSE 6870 | CDSL DP Id 12102000</p>
-        <p style="margin:0; font-size:11px; line-height:1.5; color:var(--tm);">4th Floor (Left Wing), Raheja Point 17/2, Magarath Road, Ashok Nagar, Opp Garuda Mall, Bengaluru, Karnataka 560025 · <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="30735f5d405c59515e5355704a515e435b51424355531e535f5d">[email&#160;protected]</a> · +91 86605 00796</p>
+        <p style="margin:0; font-size:11px; line-height:1.5; color:var(--tm);">4th Floor (Left Wing), Raheja Point 17/2, Magarath Road, Ashok Nagar, Opp Garuda Mall, Bengaluru, Karnataka 560025 · <a href="mailto:compliance@zanskarsec.com" style="color:var(--nubra-blue-200); text-decoration:none;">compliance@zanskarsec.com</a> · +91 86605 00796</p>
         <p style="margin:0; font-size:11px; line-height:1.5; color:var(--tm);">© 2025 Zanskar Securities Private Limited. All rights reserved. CIN: U64199KA2023PTC17563 · <a href="#" style="color:var(--nubra-blue-200); text-decoration:none;">Privacy Policy</a> · <a href="#" style="color:var(--nubra-blue-200); text-decoration:none;">Terms of Service</a> · <a href="#" style="color:var(--nubra-blue-200); text-decoration:none;">Disclaimer</a></p>
       </div>
     </footer>
@@ -587,7 +588,7 @@
   </div>
 </div>
 </x-dc>
-<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1240,&quot;height&quot;:900},&quot;showPayoff&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;nearExpiryDemo&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;}}">
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1240,&quot;height&quot;:900},&quot;showPayoff&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;nearExpiryDemo&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;}}">
 class Component extends DCLogic {
   static SIGNUP_URL = 'https://nubra.io/';
   STRATS = {
@@ -616,15 +617,19 @@ class Component extends DCLogic {
   state = {
     mode: 'fno',
     strategy: 'iron_condor',
-    pUnderlying: 'NIFTY', pExpiry: '2026-07-31', pWidth: 200, pLots: 1,
+    pUnderlying: 'NIFTY', pExpiry: '2026-06-30', pWidth: 200, pLots: 1,
     pLegs: [],
     legs: [],
-    draft: { exchange: 'NFO', product: 'Options', symbol: 'NIFTY', expiry: '2026-07-31', optionType: 'CE', strike: 24800, lots: 1, side: 'BUY' },
+    draft: { exchange: 'NFO', product: 'Options', symbol: 'NIFTY', expiry: '2026-06-30', optionType: 'CE', strike: 24800, lots: 1, side: 'BUY' },
     editingIndex: null,
     showBreakdown: true,
     theme: 'dark',
     flipped: false,
     hover: null,
+    _marginResult: null,
+    _marginKey: '',
+    _marginLoading: false,
+    _catalogVersion: 0,
   };
 
   segStyle(active) {
@@ -646,6 +651,33 @@ class Component extends DCLogic {
     const patch = { theme: t };
     if (this.md() && this.state.pLegs.length === 0) patch.pLegs = this.genPLegs(this.state.strategy, this.state.pUnderlying, this.state.pExpiry, this.state.pWidth, this.state.pLots);
     this.setState(patch);
+    if (this.md() && this.md().onUpdate) {
+      this.md().onUpdate(() => this.setState((s) => {
+        const MD = this.md(); if (!MD) return { _catalogVersion: (s._catalogVersion || 0) + 1 };
+        const prod = s.draft.product === 'Options' ? 'OPTION' : 'FUTURE';
+        const dExps = MD.getExpiries(s.draft.symbol, prod).map((e) => e.date);
+        const pExps = MD.getExpiries(s.pUnderlying, 'OPTION').map((e) => e.date);
+        const newDExp = dExps.indexOf(s.draft.expiry) >= 0 ? s.draft.expiry : (dExps[0] || s.draft.expiry);
+        const newPExp = pExps.indexOf(s.pExpiry) >= 0 ? s.pExpiry : (pExps[0] || s.pExpiry);
+        return {
+          _catalogVersion: (s._catalogVersion || 0) + 1,
+          draft: newDExp !== s.draft.expiry ? { ...s.draft, expiry: newDExp } : s.draft,
+          pExpiry: newPExp,
+        };
+      }));
+    }
+  }
+  componentDidUpdate() {
+    const MD = this.md(); if (!MD || !MD.calcMarginAsync) return;
+    const S = this.state;
+    const legs = this.positionLegs();
+    const key = JSON.stringify(legs) + '|v' + (S._catalogVersion || 0);
+    if (key === S._marginKey) return;
+    if (!legs.length) { this.setState({ _marginKey: key, _marginResult: null, _marginLoading: false }); return; }
+    this.setState({ _marginKey: key, _marginLoading: true, _marginResult: null });
+    MD.calcMarginAsync(legs).then((result) => {
+      if (this.state._marginKey === key) this.setState({ _marginResult: result, _marginLoading: false });
+    }).catch(() => this.setState({ _marginLoading: false }));
   }
   toggleTheme() {
     const t = this.state.theme === 'dark' ? 'light' : 'dark';
@@ -674,8 +706,8 @@ class Component extends DCLogic {
   }
 
   setDraft(patch) { this.setState((s) => ({ draft: { ...s.draft, ...patch } })); }
-  onDraftExchange(ex) { const MD = this.md(); const sym = MD.getInstruments(ex)[0].symbol; const exps = MD.getExpiries(sym).map((e) => e.date); this.setState((s) => ({ draft: { ...s.draft, exchange: ex, symbol: sym, strike: MD._atmOf(sym), expiry: exps.indexOf(s.draft.expiry) >= 0 ? s.draft.expiry : exps[0], lots: 1 } })); }
-  onDraftSymbol(sym) { const MD = this.md(); const exps = MD.getExpiries(sym).map((e) => e.date); this.setState((s) => ({ draft: { ...s.draft, symbol: sym, strike: MD._atmOf(sym), expiry: exps.indexOf(s.draft.expiry) >= 0 ? s.draft.expiry : exps[0], lots: 1 } })); }
+  onDraftExchange(ex) { const MD = this.md(); const sym = MD.getInstruments(ex)[0].symbol; const prod = this.state.draft.product === 'Options' ? 'OPTION' : 'FUTURE'; const exps = MD.getExpiries(sym, prod).map((e) => e.date); this.setState((s) => ({ draft: { ...s.draft, exchange: ex, symbol: sym, strike: MD._atmOf(sym), expiry: exps.indexOf(s.draft.expiry) >= 0 ? s.draft.expiry : exps[0], lots: 1 } })); }
+  onDraftSymbol(sym) { const MD = this.md(); const prod = this.state.draft.product === 'Options' ? 'OPTION' : 'FUTURE'; const exps = MD.getExpiries(sym, prod).map((e) => e.date); this.setState((s) => ({ draft: { ...s.draft, symbol: sym, strike: MD._atmOf(sym), expiry: exps.indexOf(s.draft.expiry) >= 0 ? s.draft.expiry : exps[0], lots: 1 } })); }
   addDraft() {
     const wasEditing = this.state.editingIndex != null;
     this.setState((s) => {
@@ -706,8 +738,8 @@ class Component extends DCLogic {
     this.setState((s) => {
       const MD = this.md(); const next = { ...s, ...patch };
       if (patch.pUnderlying) {
-        const instr = MD.getInstrument(next.pUnderlying); const exps = MD.getExpiries(next.pUnderlying).map((e) => e.date);
-        if (exps.indexOf(next.pExpiry) < 0) next.pExpiry = exps.indexOf('2026-07-31') >= 0 ? '2026-07-31' : exps[0];
+        const instr = MD.getInstrument(next.pUnderlying); const exps = MD.getExpiries(next.pUnderlying, 'OPTION').map((e) => e.date);
+        if (exps.indexOf(next.pExpiry) < 0) next.pExpiry = exps[0] || next.pExpiry;
         if (patch.pWidth == null) next.pWidth = instr.strikeStep * (instr.segment === 'index' ? 4 : 2);
       }
       const pLegs = this.genPLegs(next.strategy, next.pUnderlying, next.pExpiry, next.pWidth, next.pLots);
@@ -733,7 +765,7 @@ class Component extends DCLogic {
     const MD = this.md(); const S = this.state; const isFno = S.mode === 'fno';
     if (!MD) return { isFno, isPrebuilt: !isFno, noLegs: true, showEmpty: true };
     const legs = this.positionLegs();
-    const resp = MD.calcMargin(legs); const m = resp.margin; const pm = resp.positionMargin;
+    const resp = S._marginResult || MD.calcMargin(legs); const m = resp.margin; const pm = resp.positionMargin;
     const hasLegs = legs.length > 0; const multiLeg = legs.length >= 2;
     const tpm = resp.totalPositionMargin; const benefit = m.marginBenefit;
     const benefitMeaningful = multiLeg && benefit >= tpm * 0.01 && benefit > 1;
@@ -743,11 +775,12 @@ class Component extends DCLogic {
     const pct = tpm > 0 ? (benefit / tpm) * 100 : 0;
     const received = m.netPremium < 0;
 
-    const expForDraft = MD.getExpiries(S.draft.symbol);
+    const draftProd = S.draft.product === 'Options' ? 'OPTION' : 'FUTURE';
+    const expForDraft = MD.getExpiries(S.draft.symbol, draftProd);
     const expiryOptions = expForDraft.map((e) => ({ value: e.date, label: e.label }));
-    const expForP = MD.getExpiries(S.pUnderlying);
+    const expForP = MD.getExpiries(S.pUnderlying, 'OPTION');
     const expiryShortOptions = expForP.map((e) => ({ value: e.date, label: e.short }));
-    const underlyingOptions = MD.getInstruments().map((i) => ({ value: i.symbol, label: i.symbol }));
+    const underlyingOptions = MD.getInstruments(null, 'index').map((i) => ({ value: i.symbol, label: i.symbol }));
     const optTypeOptions = [{ value: 'CE', label: 'CE' }, { value: 'PE', label: 'PE' }];
 
     const d = S.draft; const dIsOpt = d.product === 'Options'; const dInstr = MD.getInstrument(d.symbol); const dLot = dInstr.lotSize;
@@ -855,8 +888,9 @@ class Component extends DCLogic {
     const standaloneStyle = 'font-family:var(--font-display); font-weight:500; font-size:12.5px; font-variant-numeric:tabular-nums; color:var(--t3);' + (multiLeg ? ' text-decoration:line-through;' : '');
 
     // hero conditional (CHANGE C)
-    const totalStyle = 'font-family:var(--font-display); font-size:34px; letter-spacing:-.02em; font-variant-numeric:tabular-nums;' + (hasLegs ? ' font-weight:700; color:var(--t1);' : ' font-weight:400; color:var(--t3);');
-    const totalCaption = hasLegs ? 'total margin' : 'Add a contract to calculate margin.';
+    const isMarginLoading = S._marginLoading && hasLegs;
+    const totalStyle = 'font-family:var(--font-display); font-size:34px; letter-spacing:-.02em; font-variant-numeric:tabular-nums;' + (hasLegs ? ' font-weight:700; color:var(--t1);' : ' font-weight:400; color:var(--t3);') + (isMarginLoading ? ' animation:nbPulse 1.4s ease-in-out infinite;' : '');
+    const totalCaption = hasLegs ? (isMarginLoading ? 'calculating…' : 'total margin') : 'Add a contract to calculate margin.';
     const totalCaptionColor = hasLegs ? 'var(--t3)' : 'var(--t2)';
 
     // quick-add chips (CHANGE B) — sourced from the mock DB
@@ -870,7 +904,8 @@ class Component extends DCLogic {
       const inst = MD.getInstrument(c.symbol);
       const strike = c.product === 'Options' ? MD._atmOf(c.symbol) : null;
       const label = c.symbol + (c.product === 'Futures' ? ' FUT' : (' ' + this.fmtInt(strike) + ' ' + c.optionType));
-      const leg = { exchange: inst.exchange, product: c.product, symbol: c.symbol, expiry: '2026-07-31', optionType: c.product === 'Options' ? c.optionType : null, strike, tradeType: c.side };
+      const qaExps = MD.getExpiries(c.symbol, c.product === 'Options' ? 'OPTION' : 'FUTURE'); const qaExp = qaExps[0] ? qaExps[0].date : '2026-06-30';
+      const leg = { exchange: inst.exchange, product: c.product, symbol: c.symbol, expiry: qaExp, optionType: c.product === 'Options' ? c.optionType : null, strike, tradeType: c.side };
       return { label, add: () => this.quickAddLeg(leg) };
     });
 
@@ -893,7 +928,7 @@ class Component extends DCLogic {
       })),
       quickAdds,
       totalStyle, totalCaption, totalCaptionColor,
-      ghostSymbol: 'NIFTY', ghostSub: 'NFO · OPTIDX', ghostStrike: this.fmtInt(this.INSTR ? 24800 : 24800), ghostOpt: 'CE', ghostSide: 'Buy', ghostSideTag: this.sideTag('BUY'), ghostQty: '75',
+      ghostSymbol: 'NIFTY', ghostSub: 'NFO · OPTIDX', ghostStrike: this.fmtInt(this.INSTR ? 24800 : 24800), ghostOpt: 'CE', ghostSide: 'Buy', ghostSideTag: this.sideTag('BUY'), ghostQty: this.fmtInt((MD.getInstrument('NIFTY') || {lotSize: 65}).lotSize),
       dExchange: d.exchange, dProduct: d.product, dSymbol: d.symbol, dExpiry: d.expiry,
       dOptType: d.optionType, dStrike: String(d.strike), dIsOpt, dLot, dLotStr: this.fmtInt(dLot),
       dLots: d.lots, dQtyStr: this.fmtInt(d.lots * dLot),
