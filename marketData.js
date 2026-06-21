@@ -14,6 +14,11 @@
 (function (global) {
   "use strict";
 
+  /* Idempotent: the DC helmet can inject this script more than once. Keep a single
+     module instance so there is one _updateCbs list, one catalog fetch, and the
+     onUpdate hook always fires on the module that getStrikes/_fetchStrikes use. */
+  if (global.MarketData) return;
+
   /* ---- Seed: instruments (mock spot/change; real lotSize patched from catalog) ---- */
   var INSTRUMENTS = {
     NIFTY:     { symbol: "NIFTY",     name: "Nifty 50",        exchange: "NFO", segment: "index",     lotSize: 75,   spot: 24800, change: 93.70,  strikeStep: 50 },
@@ -40,7 +45,9 @@
   ];
 
   /* ---- Real catalog state ---- */
-  var _realInstruments = [];   // flat list from /api/catalog response
+  var ALLOWED_EX       = ["NFO", "BFO", "MCX"];  // only these are surfaced
+  var _realByKey       = {};   // "EXCHANGE:SYMBOL" -> instrument obj (per-exchange)
+  var _realInstruments = [];   // flat list (same objects, catalog order)
   var _realExpiries    = {};   // { "2026-06-30": expiry-obj } — all known dates
   var _strikesCache    = {};   // { "NFO:OPTION:NIFTY-30JUN26:CALL": [24000, ...] }
   var _fetchingKeys    = {};   // in-flight strike requests
@@ -60,32 +67,44 @@
 
   function _applyCatalogData(data) {
     var insts = data.instruments || [];
+    var list = [];
     insts.forEach(function (inst) {
-      var k = inst.symbol;
-      if (!INSTRUMENTS[k]) {
-        INSTRUMENTS[k] = {
-          symbol: k, name: k,
-          exchange: inst.exchange, segment: inst.segment,
-          lotSize: inst.lotSize,
-          spot: 0, change: 0, changePct: 0, strikeStep: 10,
-        };
-      } else {
-        // Always update — catalog sorted (exchange,symbol) so NFO overwrites BFO
-        INSTRUMENTS[k].exchange = inst.exchange;
-        INSTRUMENTS[k].segment  = inst.segment;
-        INSTRUMENTS[k].lotSize  = inst.lotSize;
-      }
-      INSTRUMENTS[k].hasOptions = inst.hasOptions;
-      INSTRUMENTS[k].hasFutures = inst.hasFutures;
-      INSTRUMENTS[k]._expByProd = inst.expiries;
+      if (ALLOWED_EX.indexOf(inst.exchange) < 0) return;  // 3 exchanges only
+      var sym = inst.symbol, ex = inst.exchange, key = ex + ":" + sym;
+      var seed = INSTRUMENTS[sym];               // mock seed (for spot/strikeStep)
+      var obj = _realByKey[key] || {
+        symbol: sym, name: seed ? seed.name : sym,
+        exchange: ex,
+        spot:       seed ? seed.spot       : 0,
+        change:     seed ? seed.change     : 0,
+        changePct:  seed ? seed.changePct  : 0,
+        strikeStep: seed ? seed.strikeStep : 10,
+      };
+      obj.segment    = inst.segment;
+      obj.lotSize    = inst.lotSize;
+      obj.hasOptions = inst.hasOptions;
+      obj.hasFutures = inst.hasFutures;
+      obj._expByProd = inst.expiries;
+      _realByKey[key] = obj;
+      list.push(obj);
       ["OPTION", "FUTURE"].forEach(function (p) {
-        (inst.expiries[p] || []).forEach(function (e) {
-          _realExpiries[e.date] = e;
-        });
+        (inst.expiries[p] || []).forEach(function (e) { _realExpiries[e.date] = e; });
       });
     });
-    _realInstruments = insts;
+    _realInstruments = list;
     _fireUpdate();
+  }
+
+  /* Resolve a (symbol, exchange) pair to its instrument object.
+     With an exchange, returns that exact listing (NFO:DRREDDY vs BFO:DRREDDY).
+     Without one, prefers NFO > BFO > MCX, then falls back to the mock seed. */
+  function _resolve(symbol, exchange) {
+    if (exchange && _realByKey[exchange + ":" + symbol]) return _realByKey[exchange + ":" + symbol];
+    for (var i = 0; i < ALLOWED_EX.length; i++) {
+      var e = _realByKey[ALLOWED_EX[i] + ":" + symbol];
+      if (e) return e;
+    }
+    return INSTRUMENTS[symbol] || null;
   }
 
   function initCatalog() {
@@ -133,11 +152,14 @@
       _strikesCache[putKey]  = pStrikes;
       delete _fetchingKeys[callKey];
 
-      /* Update strikeStep for the symbol from real data */
+      /* Update strikeStep + derive a spot for the symbol from real strikes */
       if (symbol && cStrikes.length >= 2) {
         var step = cStrikes[1] - cStrikes[0];
-        if (step > 0 && INSTRUMENTS[symbol]) {
-          INSTRUMENTS[symbol].strikeStep = step;
+        var inst = _resolve(symbol, exchange);
+        if (inst) {
+          if (step > 0) inst.strikeStep = step;
+          /* Catalog has no spot for stocks — approximate with the median strike */
+          if (!inst.spot) inst.spot = cStrikes[Math.floor(cStrikes.length / 2)];
         }
       }
       _fireUpdate();
@@ -147,8 +169,8 @@
   /* ------------------------------------------------------------------ */
   /* Expiry helpers                                                       */
   /* ------------------------------------------------------------------ */
-  function _expiriesFor(symbol, productFilter) {
-    var inst = INSTRUMENTS[symbol];
+  function _expiriesFor(symbol, productFilter, exchange) {
+    var inst = _resolve(symbol, exchange);
     if (inst && inst._expByProd) {
       var key = productFilter || "OPTION";
       var exps = inst._expByProd[key];
@@ -180,8 +202,8 @@
   /* ------------------------------------------------------------------ */
   function round2(n) { return Math.round(n * 100) / 100; }
 
-  function _atmOf(symbol) {
-    var inst = INSTRUMENTS[symbol];
+  function _atmOf(symbol, exchange) {
+    var inst = _resolve(symbol, exchange);
     if (!inst) return 0;
 
     /* If real strikes are cached use the median as ATM approximation */
@@ -201,8 +223,8 @@
     return Math.round(spot / step) * step;
   }
 
-  function _priceOption(symbol, strike, opt, days) {
-    var inst = INSTRUMENTS[symbol];
+  function _priceOption(symbol, strike, opt, days, exchange) {
+    var inst = _resolve(symbol, exchange);
     var spot = inst ? (inst.spot || 0) : 0;
     if (!spot) return 0;
     var intrinsic = opt === "CE" ? Math.max(spot - strike, 0) : Math.max(strike - spot, 0);
@@ -218,9 +240,9 @@
     if (_realInstruments.length) {
       var seen = {};
       _realInstruments.forEach(function (i) { seen[i.exchange] = true; });
-      return Object.keys(seen).sort();
+      return ALLOWED_EX.filter(function (e) { return seen[e]; });
     }
-    return ["NFO", "BFO", "MCX"];
+    return ALLOWED_EX.slice();
   }
 
   function getProducts(/* exchange */) {
@@ -229,88 +251,80 @@
 
   /* segment filter: "index" | "stock" | "commodity" | undefined (all) */
   function getInstruments(exchange, segment) {
-    var source;
-    if (_realInstruments.length) {
-      source = _realInstruments.map(function (inst) {
-        var mock = INSTRUMENTS[inst.symbol];
-        // Use inst.exchange/segment from real catalog — INSTRUMENTS is symbol-keyed
-        // and may hold the wrong exchange if the same ticker trades on multiple exchanges.
-        return {
-          symbol:     inst.symbol,
-          name:       mock ? mock.name       : inst.symbol,
-          exchange:   inst.exchange,
-          segment:    inst.segment,
-          lotSize:    inst.lotSize,
-          spot:       mock ? mock.spot       : 0,
-          change:     mock ? mock.change     : 0,
-          changePct:  mock ? mock.changePct  : 0,
-          strikeStep: mock ? mock.strikeStep : 10,
-          hasOptions: inst.hasOptions,
-          hasFutures: inst.hasFutures,
-          _expByProd: inst.expiries,
-        };
-      });
-    } else {
-      source = Object.keys(INSTRUMENTS).map(function (k) { return INSTRUMENTS[k]; });
-    }
+    var source = _realInstruments.length
+      ? _realInstruments
+      : Object.keys(INSTRUMENTS).map(function (k) { return INSTRUMENTS[k]; });
     return source.filter(function (i) {
       return (!exchange || i.exchange === exchange) &&
              (!segment  || i.segment  === segment);
     });
   }
 
-  function getInstrument(symbol) { return INSTRUMENTS[symbol] || null; }
+  function getInstrument(symbol, exchange) { return _resolve(symbol, exchange); }
 
   /* productFilter: "OPTION" | "FUTURE" | undefined  (defaults to OPTION) */
-  function getExpiries(symbol, productFilter) {
-    return _expiriesFor(symbol, productFilter);
+  function getExpiries(symbol, productFilter, exchange) {
+    return _expiriesFor(symbol, productFilter, exchange);
   }
 
-  function getStrikes(symbol, expiryDate) {
-    var inst = INSTRUMENTS[symbol];
+  function getStrikes(symbol, expiryDate, exchange) {
+    var inst = _resolve(symbol, exchange);
     if (!inst) return [];
+    var ex = inst.exchange;
 
     var expObj = _realExpiries[expiryDate] || _expiryByDate(expiryDate);
     var days   = expObj ? expObj.days : 30;
     var angel  = expObj ? expObj.angel : null;
 
-    if (inst.exchange && angel) {
+    if (ex && angel) {
       var contract = symbol + "-" + angel;
-      var callKey  = inst.exchange + ":OPTION:" + contract + ":CALL";
-      var putKey   = inst.exchange + ":OPTION:" + contract + ":PUT";
+      var callKey  = ex + ":OPTION:" + contract + ":CALL";
+      var putKey   = ex + ":OPTION:" + contract + ":PUT";
 
       if (_strikesCache[callKey] && _strikesCache[putKey]) {
         /* Real strikes available — attach mock LTPs */
         return _strikesCache[callKey].map(function (s) {
-          var ce = _priceOption(symbol, s, "CE", days);
-          var pe = _priceOption(symbol, s, "PE", days);
+          var ce = _priceOption(symbol, s, "CE", days, ex);
+          var pe = _priceOption(symbol, s, "PE", days, ex);
           return { strike: s, ce: { ltp: ce, price: ce }, pe: { ltp: pe, price: pe } };
         });
       }
       /* Trigger background fetch; return mock while loading */
-      _fetchStrikes(inst.exchange, "OPTION", contract, symbol);
+      _fetchStrikes(ex, "OPTION", contract, symbol);
     }
 
     /* Mock fallback — generate synthetic strikes around ATM */
-    var atm  = _atmOf(symbol);
+    var atm  = _atmOf(symbol, ex);
     if (!atm) return [];
     var step = inst.strikeStep || 50;
     var out  = [];
     for (var k = -12; k <= 12; k++) {
       var s = atm + k * step;
       if (s <= 0) continue;
-      var ce = _priceOption(symbol, s, "CE", days);
-      var pe = _priceOption(symbol, s, "PE", days);
+      var ce = _priceOption(symbol, s, "CE", days, ex);
+      var pe = _priceOption(symbol, s, "PE", days, ex);
       out.push({ strike: s, ce: { ltp: ce, price: ce }, pe: { ltp: pe, price: pe } });
     }
     return out;
   }
 
-  function getQuote(symbol, expiryDate, strike, opt) {
+  function getQuote(symbol, expiryDate, strike, opt, exchange) {
     var expObj = _expiryByDate(expiryDate);
     var days   = expObj ? expObj.days : 30;
-    var p = _priceOption(symbol, strike, opt, days);
+    var p = _priceOption(symbol, strike, opt, days, exchange);
     return { ltp: p, price: p };
+  }
+
+  /* Real (exchange-sourced) strike numbers for a contract, or [] if not yet
+     loaded. Used to snap a draft strike onto a valid value once strikes arrive. */
+  function getStrikeList(symbol, expiryDate, exchange) {
+    var inst = _resolve(symbol, exchange);
+    if (!inst || !inst.exchange) return [];
+    var expObj = _realExpiries[expiryDate] || _expiryByDate(expiryDate);
+    var angel  = expObj ? expObj.angel : null;
+    if (!angel) return [];
+    var callKey = inst.exchange + ":OPTION:" + symbol + "-" + angel + ":CALL";
+    return _strikesCache[callKey] ? _strikesCache[callKey].slice() : [];
   }
 
   /* ---- Sync margin calc (mock — used as immediate placeholder) ---- */
@@ -329,12 +343,12 @@
 
   function calcMargin(legs) {
     var perLeg = legs.map(function (l) {
-      var inst     = INSTRUMENTS[l.symbol] || { lotSize: 1, spot: 0, segment: "stock", exchange: l.exchange || "NFO" };
+      var inst     = _resolve(l.symbol, l.exchange) || { lotSize: 1, spot: 0, segment: "stock", exchange: l.exchange || "NFO" };
       var lot      = inst.lotSize, spot = inst.spot || 0, qty = l.lots * lot;
       var r        = _RATES[inst.segment] || _RATES.stock;
       var isOpt    = l.product === "Options";
       var px       = l.price != null ? l.price
-                   : (isOpt ? getQuote(l.symbol, l.expiry, l.strike, l.optionType).price : spot);
+                   : (isOpt ? getQuote(l.symbol, l.expiry, l.strike, l.optionType, l.exchange).price : spot);
       var shortRisk = l.product === "Futures" || (isOpt && l.tradeType === "SELL");
       var span = 0, expo = 0, total = 0;
       if (shortRisk) { span = spot * qty * r.span; expo = spot * qty * r.expo; total = span + expo; }
@@ -387,7 +401,7 @@
   /* ---- Async margin — real Angel One SPAN API ---- */
   function calcMarginAsync(legs) {
     var enriched = legs.map(function (leg) {
-      var inst = INSTRUMENTS[leg.symbol] || {};
+      var inst = _resolve(leg.symbol, leg.exchange) || {};
       return Object.assign({}, leg, { qty: leg.lots * (inst.lotSize || 1) });
     });
     return fetch("/api/margin", {
@@ -427,7 +441,7 @@
   function getGreeks(legs) {
     var g = { delta: 0, theta: 0, gamma: 0, vega: 0 };
     legs.forEach(function (l) {
-      var inst = INSTRUMENTS[l.symbol];
+      var inst = _resolve(l.symbol, l.exchange);
       if (!inst || !inst.spot) return;
       var qty  = l.lots * inst.lotSize;
       var sign = l.tradeType === "SELL" ? -1 : 1;
@@ -464,6 +478,7 @@
     getInstrument:   getInstrument,
     getExpiries:     getExpiries,
     getStrikes:      getStrikes,
+    getStrikeList:   getStrikeList,
     getQuote:        getQuote,
     getTickerQuotes: getTickerQuotes,
     getGreeks:       getGreeks,

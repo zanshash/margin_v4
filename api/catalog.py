@@ -59,8 +59,11 @@ def _build(raw: dict) -> dict:
 
     today = date.today()
     by_key: dict = {}  # (symbol, exchange) -> info dict
+    allowed_ex = ("NFO", "BFO", "MCX")  # equity + commodity F&O only
 
     for ex_name, products in raw.get("contracts", {}).items():
+        if ex_name not in allowed_ex:
+            continue
         for prod_name, contracts in products.items():
             if prod_name not in ("OPTION", "FUTURE"):
                 continue

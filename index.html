@@ -651,24 +651,58 @@ class Component extends DCLogic {
     const patch = { theme: t };
     if (this.md() && this.state.pLegs.length === 0) patch.pLegs = this.genPLegs(this.state.strategy, this.state.pUnderlying, this.state.pExpiry, this.state.pWidth, this.state.pLots);
     this.setState(patch);
-    if (this.md() && this.md().onUpdate) {
-      this.md().onUpdate(() => this.setState((s) => {
-        const MD = this.md(); if (!MD) return { _catalogVersion: (s._catalogVersion || 0) + 1 };
-        const prod = s.draft.product === 'Options' ? 'OPTION' : 'FUTURE';
-        const dExps = MD.getExpiries(s.draft.symbol, prod).map((e) => e.date);
-        const pExps = MD.getExpiries(s.pUnderlying, 'OPTION').map((e) => e.date);
-        const newDExp = dExps.indexOf(s.draft.expiry) >= 0 ? s.draft.expiry : (dExps[0] || s.draft.expiry);
-        const newPExp = pExps.indexOf(s.pExpiry) >= 0 ? s.pExpiry : (pExps[0] || s.pExpiry);
-        return {
-          _catalogVersion: (s._catalogVersion || 0) + 1,
-          draft: newDExp !== s.draft.expiry ? { ...s.draft, expiry: newDExp } : s.draft,
-          pExpiry: newPExp,
-        };
-      }));
+    // Force a re-render when catalog/strikes arrive. The DC script can be evaluated
+    // more than once (separate class statics), so we register the hook ONCE on a
+    // window flag and bump *every* tracked instance (the live one is always among
+    // them; detached ones no-op). The expiry/strike correction then happens in
+    // componentDidUpdate on the live instance.
+    if (this.md() && this.md().onUpdate && !window.__nbHooked) {
+      window.__nbHooked = true;
+      this.md().onUpdate(() => {
+        (window.__nbInstances || []).forEach((inst) => {
+          try { inst.setState((s) => ({ _catalogVersion: (s._catalogVersion || 0) + 1 })); } catch (e) {}
+        });
+      });
     }
+  }
+  // Snap a strike onto a valid real strike once strikes load; until then leave it.
+  snapStrike(symbol, expiry, exchange, strike) {
+    const MD = this.md(); if (!MD) return strike;
+    const list = MD.getStrikeList(symbol, expiry, exchange);
+    if (!list.length || list.indexOf(strike) >= 0) return strike;
+    return MD._atmOf(symbol, exchange) || strike;
+  }
+  // Correct draft + leg expiries/strikes against real catalog data. Runs on the
+  // live instance (componentDidUpdate). Returns true if it changed state.
+  fixContracts() {
+    const MD = this.md(); if (!MD) return false;
+    const S = this.state; let patch = null;
+    // Draft (F&O mode)
+    if (S.mode === 'fno') {
+      const prod = S.draft.product === 'Options' ? 'OPTION' : 'FUTURE';
+      const exps = MD.getExpiries(S.draft.symbol, prod, S.draft.exchange).map((e) => e.date);
+      let exp = S.draft.expiry;
+      if (exps.length && exps.indexOf(exp) < 0) exp = exps[0];
+      let strike = S.draft.strike;
+      if (S.draft.product === 'Options') strike = this.snapStrike(S.draft.symbol, exp, S.draft.exchange, strike);
+      if (exp !== S.draft.expiry || strike !== S.draft.strike) patch = { draft: { ...S.draft, expiry: exp, strike } };
+    }
+    // Existing F&O legs
+    let legsChanged = false;
+    const newLegs = S.legs.map((l) => {
+      if (l.product === 'Options' && l.strike != null) {
+        const ns = this.snapStrike(l.symbol, l.expiry, l.exchange, l.strike);
+        if (ns !== l.strike) { legsChanged = true; return { ...l, strike: ns }; }
+      }
+      return l;
+    });
+    if (legsChanged) patch = { ...(patch || {}), legs: newLegs };
+    if (patch) { this.setState(patch); return true; }
+    return false;
   }
   componentDidUpdate() {
     const MD = this.md(); if (!MD || !MD.calcMarginAsync) return;
+    if (this.fixContracts()) return;   // a follow-up didUpdate recomputes margin
     const S = this.state;
     const legs = this.positionLegs();
     const key = JSON.stringify(legs) + '|v' + (S._catalogVersion || 0);
@@ -687,10 +721,10 @@ class Component extends DCLogic {
   }
 
   genPLegs(strategy, symbol, expiry, width, lots) {
-    const MD = this.md(); const def = this.STRATS[strategy]; const atm = MD._atmOf(symbol);
+    const MD = this.md(); const def = this.STRATS[strategy]; const ex = (MD.getInstrument(symbol) || {}).exchange; const atm = MD._atmOf(symbol, ex);
     return def.legs.map((d) => {
       const strike = atm + d.k * width;
-      const price = MD.getQuote(symbol, expiry, strike, d.o).price;
+      const price = MD.getQuote(symbol, expiry, strike, d.o, ex).price;
       return { optType: d.o, side: d.s, strike, lots: lots * (d.q || 1), expiry, price };
     });
   }
@@ -706,8 +740,9 @@ class Component extends DCLogic {
   }
 
   setDraft(patch) { this.setState((s) => ({ draft: { ...s.draft, ...patch } })); }
-  onDraftExchange(ex) { const MD = this.md(); const sym = MD.getInstruments(ex)[0].symbol; const prod = this.state.draft.product === 'Options' ? 'OPTION' : 'FUTURE'; const exps = MD.getExpiries(sym, prod).map((e) => e.date); this.setState((s) => ({ draft: { ...s.draft, exchange: ex, symbol: sym, strike: MD._atmOf(sym), expiry: exps.indexOf(s.draft.expiry) >= 0 ? s.draft.expiry : exps[0], lots: 1 } })); }
-  onDraftSymbol(sym) { const MD = this.md(); const prod = this.state.draft.product === 'Options' ? 'OPTION' : 'FUTURE'; const exps = MD.getExpiries(sym, prod).map((e) => e.date); this.setState((s) => ({ draft: { ...s.draft, symbol: sym, strike: MD._atmOf(sym), expiry: exps.indexOf(s.draft.expiry) >= 0 ? s.draft.expiry : exps[0], lots: 1 } })); }
+  onDraftExchange(ex) { const MD = this.md(); const list = MD.getInstruments(ex); const sym = list.length ? list[0].symbol : this.state.draft.symbol; const prod = this.state.draft.product === 'Options' ? 'OPTION' : 'FUTURE'; const exps = MD.getExpiries(sym, prod, ex).map((e) => e.date); this.setState((s) => ({ draft: { ...s.draft, exchange: ex, symbol: sym, strike: MD._atmOf(sym, ex), expiry: exps.indexOf(s.draft.expiry) >= 0 ? s.draft.expiry : exps[0], lots: 1 } })); }
+  onDraftSymbol(sym) { const MD = this.md(); const ex = this.state.draft.exchange; const prod = this.state.draft.product === 'Options' ? 'OPTION' : 'FUTURE'; const exps = MD.getExpiries(sym, prod, ex).map((e) => e.date); this.setState((s) => ({ draft: { ...s.draft, symbol: sym, strike: MD._atmOf(sym, ex), expiry: exps.indexOf(s.draft.expiry) >= 0 ? s.draft.expiry : exps[0], lots: 1 } })); }
+  onDraftProduct(v) { const MD = this.md(); const ex = this.state.draft.exchange; const prod = v === 'Options' ? 'OPTION' : 'FUTURE'; const exps = MD.getExpiries(this.state.draft.symbol, prod, ex).map((e) => e.date); this.setState((s) => ({ draft: { ...s.draft, product: v, expiry: exps.indexOf(s.draft.expiry) >= 0 ? s.draft.expiry : (exps[0] || s.draft.expiry) } })); }
   addDraft() {
     const wasEditing = this.state.editingIndex != null;
     this.setState((s) => {
@@ -728,7 +763,7 @@ class Component extends DCLogic {
     clearTimeout(this._pk1); clearTimeout(this._pk2);
     this._pk1 = setTimeout(() => { this.setState({ flipped: false }); this._pk2 = setTimeout(() => { this._peeking = false; }, 650); }, 800);
   }
-  loadRow(i) { const MD = this.md(); this.setState((s) => { const l = s.legs[i]; return { editingIndex: i, draft: { exchange: l.exchange, product: l.product, symbol: l.symbol, expiry: l.expiry, optionType: l.optionType || 'CE', strike: l.strike != null ? l.strike : MD._atmOf(l.symbol), lots: l.lots, side: l.tradeType } }; }); }
+  loadRow(i) { const MD = this.md(); this.setState((s) => { const l = s.legs[i]; return { editingIndex: i, draft: { exchange: l.exchange, product: l.product, symbol: l.symbol, expiry: l.expiry, optionType: l.optionType || 'CE', strike: l.strike != null ? l.strike : MD._atmOf(l.symbol, l.exchange), lots: l.lots, side: l.tradeType } }; }); }
   cancelEdit() { this.setState({ editingIndex: null }); }
   resetAll() { this.setState({ legs: [], editingIndex: null }); }
   quickAddLeg(cfg) { this.setState((s) => ({ legs: [...s.legs, { ...cfg, lots: 1 }], editingIndex: null })); setTimeout(() => this.maybePeek(), 0); }
@@ -738,7 +773,7 @@ class Component extends DCLogic {
     this.setState((s) => {
       const MD = this.md(); const next = { ...s, ...patch };
       if (patch.pUnderlying) {
-        const instr = MD.getInstrument(next.pUnderlying); const exps = MD.getExpiries(next.pUnderlying, 'OPTION').map((e) => e.date);
+        const instr = MD.getInstrument(next.pUnderlying) || { strikeStep: 50, segment: 'index' }; const exps = MD.getExpiries(next.pUnderlying, 'OPTION', instr.exchange).map((e) => e.date);
         if (exps.indexOf(next.pExpiry) < 0) next.pExpiry = exps[0] || next.pExpiry;
         if (patch.pWidth == null) next.pWidth = instr.strikeStep * (instr.segment === 'index' ? 4 : 2);
       }
@@ -748,9 +783,9 @@ class Component extends DCLogic {
     if (patch && Object.keys(patch).length > 0) setTimeout(() => this.maybePeek(), 0);
   }
   updatePLeg(i, patch) { this.setState((s) => ({ pLegs: s.pLegs.map((l, idx) => idx === i ? { ...l, ...patch } : l) })); }
-  pLegStrike(i, dir) { this.setState((s) => { const MD = this.md(); const step = MD.getInstrument(s.pUnderlying).strikeStep; const pLegs = s.pLegs.map((l, idx) => { if (idx !== i) return l; const strike = Math.max(step, l.strike + dir * step); const price = MD.getQuote(s.pUnderlying, l.expiry, strike, l.optType).price; return { ...l, strike, price }; }); return { pLegs }; }); }
-  pLegFlipOpt(i) { this.setState((s) => { const MD = this.md(); const pLegs = s.pLegs.map((l, idx) => { if (idx !== i) return l; const optType = l.optType === 'CE' ? 'PE' : 'CE'; const price = MD.getQuote(s.pUnderlying, l.expiry, l.strike, optType).price; return { ...l, optType, price }; }); return { pLegs }; }); }
-  pLegExpiry(i, expiry) { this.setState((s) => { const MD = this.md(); const pLegs = s.pLegs.map((l, idx) => { if (idx !== i) return l; const price = MD.getQuote(s.pUnderlying, expiry, l.strike, l.optType).price; return { ...l, expiry, price }; }); return { pLegs }; }); }
+  pLegStrike(i, dir) { this.setState((s) => { const MD = this.md(); const inst = MD.getInstrument(s.pUnderlying) || {}; const ex = inst.exchange; const step = inst.strikeStep || 50; const pLegs = s.pLegs.map((l, idx) => { if (idx !== i) return l; const strike = Math.max(step, l.strike + dir * step); const price = MD.getQuote(s.pUnderlying, l.expiry, strike, l.optType, ex).price; return { ...l, strike, price }; }); return { pLegs }; }); }
+  pLegFlipOpt(i) { this.setState((s) => { const MD = this.md(); const ex = (MD.getInstrument(s.pUnderlying) || {}).exchange; const pLegs = s.pLegs.map((l, idx) => { if (idx !== i) return l; const optType = l.optType === 'CE' ? 'PE' : 'CE'; const price = MD.getQuote(s.pUnderlying, l.expiry, l.strike, optType, ex).price; return { ...l, optType, price }; }); return { pLegs }; }); }
+  pLegExpiry(i, expiry) { this.setState((s) => { const MD = this.md(); const ex = (MD.getInstrument(s.pUnderlying) || {}).exchange; const pLegs = s.pLegs.map((l, idx) => { if (idx !== i) return l; const price = MD.getQuote(s.pUnderlying, expiry, l.strike, l.optType, ex).price; return { ...l, expiry, price }; }); return { pLegs }; }); }
   removePLeg(i) { this.setState((s) => ({ pLegs: s.pLegs.filter((_, idx) => idx !== i) })); }
 
   tabStyle(active) { const base = 'height:34px; padding:0 18px; border-radius:999px; border:0; cursor:pointer; font-family:var(--font-sans); font-weight:500; font-size:13px; transition:all 120ms var(--ease-out); '; return base + (active ? 'background:var(--nubra-blue-400); color:#fff;' : 'background:transparent; color:var(--t3);'); }
@@ -762,6 +797,10 @@ class Component extends DCLogic {
   legTitle(l) { if (l.product === 'Futures') return l.symbol + ' FUT'; return l.symbol + ' ' + this.fmtInt(l.strike) + ' ' + l.optionType; }
 
   renderVals() {
+    // Track every instance that renders, on a window-level Set (the DC script can be
+    // evaluated more than once, producing separate class statics — window is shared).
+    // The onUpdate hook re-renders all tracked instances so the live one is reached.
+    (window.__nbInstances || (window.__nbInstances = new Set())).add(this);
     const MD = this.md(); const S = this.state; const isFno = S.mode === 'fno';
     if (!MD) return { isFno, isPrebuilt: !isFno, noLegs: true, showEmpty: true };
     const legs = this.positionLegs();
@@ -776,15 +815,15 @@ class Component extends DCLogic {
     const received = m.netPremium < 0;
 
     const draftProd = S.draft.product === 'Options' ? 'OPTION' : 'FUTURE';
-    const expForDraft = MD.getExpiries(S.draft.symbol, draftProd);
+    const expForDraft = MD.getExpiries(S.draft.symbol, draftProd, S.draft.exchange);
     const expiryOptions = expForDraft.map((e) => ({ value: e.date, label: e.label }));
     const expForP = MD.getExpiries(S.pUnderlying, 'OPTION');
     const expiryShortOptions = expForP.map((e) => ({ value: e.date, label: e.short }));
     const underlyingOptions = MD.getInstruments(null, 'index').map((i) => ({ value: i.symbol, label: i.symbol }));
     const optTypeOptions = [{ value: 'CE', label: 'CE' }, { value: 'PE', label: 'PE' }];
 
-    const d = S.draft; const dIsOpt = d.product === 'Options'; const dInstr = MD.getInstrument(d.symbol); const dLot = dInstr.lotSize;
-    const dStrikes = MD.getStrikes(d.symbol, d.expiry);
+    const d = S.draft; const dIsOpt = d.product === 'Options'; const dInstr = MD.getInstrument(d.symbol, d.exchange) || { lotSize: 1 }; const dLot = dInstr.lotSize;
+    const dStrikes = MD.getStrikes(d.symbol, d.expiry, d.exchange);
 
     const fnoRows = isFno ? legs.map((l, i) => { const p = pm[i]; const isOpt = l.product === 'Options'; return {
       exchange: l.exchange, symbol: l.symbol, product: p.product,
@@ -795,7 +834,7 @@ class Component extends DCLogic {
       edit: () => this.loadRow(i), remove: (ev) => { if (ev && ev.stopPropagation) ev.stopPropagation(); this.removeLeg(i); },
     }; }) : [];
 
-    const instr = MD.getInstrument(S.pUnderlying); const up = instr.change >= 0;
+    const instr = MD.getInstrument(S.pUnderlying) || { change: 0, strikeStep: 50, segment: 'index', exchange: 'NFO', spot: 0 }; const up = instr.change >= 0;
     const strategyOptions = this.STRAT_ORDER.map((k) => ({ value: k, label: this.STRATS[k].name }));
     const stepP = instr.strikeStep;
     const widthList = [1, 2, 4, 6].map((mu) => { const w = stepP * mu; return { label: this.fmtInt(w), style: this.widthBtnStyle(S.pWidth === w), onSelect: () => this.regen({ pWidth: w }) }; });
@@ -803,7 +842,7 @@ class Component extends DCLogic {
     const pRows = (!isFno) ? legs.map((l, i) => { const p = pm[i]; const premSigned = (l.tradeType === 'SELL' ? 1 : -1) * l.price * p.qty; return {
       side: l.tradeType, sideShort: l.tradeType === 'BUY' ? 'B' : 'S', sideBtn: this.sideBtn(l.tradeType),
       expiry: l.expiry, strike: this.fmtInt(l.strike), optType: l.optionType, optBtn: this.optBtn(l.optionType),
-      qty: this.fmtInt(p.qty), ltp: this.fmt(MD.getQuote(S.pUnderlying, l.expiry, l.strike, l.optionType).ltp, 2), price: l.price,
+      qty: this.fmtInt(p.qty), ltp: this.fmt(MD.getQuote(S.pUnderlying, l.expiry, l.strike, l.optionType, instr.exchange).ltp, 2), price: l.price,
       premium: (premSigned >= 0 ? '+' : '\u2212') + this.fmt(Math.abs(premSigned), 0).slice(1), premColor: premSigned >= 0 ? 'var(--buy)' : 'var(--down-500)',
       flipSide: () => this.updatePLeg(i, { side: l.tradeType === 'BUY' ? 'SELL' : 'BUY' }), flipOpt: () => this.pLegFlipOpt(i),
       onExpiry: (v) => this.pLegExpiry(i, v),
@@ -814,14 +853,18 @@ class Component extends DCLogic {
 
     const breakdownLegs = legs.map((l, i) => { const p = pm[i]; return { title: this.legTitle(l), side: l.tradeType, sideTag: this.sideTag(l.tradeType), qtyStr: this.fmtInt(p.qty), spanStr: this.fmt(p.SPANMargin, 0), totalStr: this.fmt(p.totalMargin, 0) }; });
 
-    const showPayoff = (this.props.showPayoff != null ? this.props.showPayoff : true) && hasLegs;
+    // Reference spot for payoff/greeks. Catalog has no live spot for stocks, so
+    // fall back to the ATM strike (derived from real strikes once they load).
+    let refSpot = hasLegs ? ((MD.getInstrument(legs[0].symbol, legs[0].exchange) || {}).spot || 0) : 0;
+    if (hasLegs && refSpot <= 0) refSpot = MD._atmOf(legs[0].symbol, legs[0].exchange) || 0;
+    const showPayoff = (this.props.showPayoff != null ? this.props.showPayoff : true) && hasLegs && refSpot > 0;
     const daysToExp = hasLegs ? MD._expiryByDate(legs[0].expiry).days : 0;
     const greeks = hasLegs ? MD.getGreeks(legs) : { delta: 0, theta: 0, gamma: 0, vega: 0 };
     const credit = m.netPremium < 0;
     let pf = {};
     if (showPayoff) {
-      const en = legs.map((l, i) => ({ product: l.product, optionType: l.optionType, strike: l.strike, tradeType: l.tradeType, qty: pm[i].qty, premium: l.price != null ? l.price : MD.getQuote(l.symbol, l.expiry, l.strike, l.optionType).price }));
-      const spot = MD.getInstrument(legs[0].symbol).spot;
+      const en = legs.map((l, i) => ({ product: l.product, optionType: l.optionType, strike: l.strike, tradeType: l.tradeType, qty: pm[i].qty, premium: l.price != null ? l.price : MD.getQuote(l.symbol, l.expiry, l.strike, l.optionType, l.exchange).price }));
+      const spot = refSpot;
       const minS = spot * 0.82, maxS = spot * 1.18; const N = 80, W = 600, H = 200, padY = 22;
       const pnlAt = (x) => { let t = 0; for (const l of en) { const q = l.qty; if (l.product === 'Futures') { t += (l.tradeType === 'BUY' ? (x - spot) : (spot - x)) * q; } else { const intr = l.optionType === 'CE' ? Math.max(x - l.strike, 0) : Math.max(l.strike - x, 0); t += (l.tradeType === 'BUY' ? (intr - l.premium) : (l.premium - intr)) * q; } } return t; };
       const pts = []; for (let k = 0; k <= N; k++) { const x = minS + (maxS - minS) * k / N; pts.push({ x, p: pnlAt(x) }); }
@@ -901,11 +944,12 @@ class Component extends DCLogic {
       { symbol: 'RELIANCE', product: 'Futures', side: 'BUY' },
     ];
     const quickAdds = qaDefs.map((c) => {
-      const inst = MD.getInstrument(c.symbol);
-      const strike = c.product === 'Options' ? MD._atmOf(c.symbol) : null;
+      const inst = MD.getInstrument(c.symbol) || { exchange: 'NFO' };
+      const ex = inst.exchange;
+      const strike = c.product === 'Options' ? MD._atmOf(c.symbol, ex) : null;
       const label = c.symbol + (c.product === 'Futures' ? ' FUT' : (' ' + this.fmtInt(strike) + ' ' + c.optionType));
-      const qaExps = MD.getExpiries(c.symbol, c.product === 'Options' ? 'OPTION' : 'FUTURE'); const qaExp = qaExps[0] ? qaExps[0].date : '2026-06-30';
-      const leg = { exchange: inst.exchange, product: c.product, symbol: c.symbol, expiry: qaExp, optionType: c.product === 'Options' ? c.optionType : null, strike, tradeType: c.side };
+      const qaExps = MD.getExpiries(c.symbol, c.product === 'Options' ? 'OPTION' : 'FUTURE', ex); const qaExp = qaExps[0] ? qaExps[0].date : '2026-06-30';
+      const leg = { exchange: ex, product: c.product, symbol: c.symbol, expiry: qaExp, optionType: c.product === 'Options' ? c.optionType : null, strike, tradeType: c.side };
       return { label, add: () => this.quickAddLeg(leg) };
     });
 
@@ -940,7 +984,7 @@ class Component extends DCLogic {
       dStrikeOptions: dStrikes.map((s) => ({ value: String(s.strike), label: this.fmtInt(s.strike) })),
       dBuyStyle: this.draftSideStyle(d.side === 'BUY', 'BUY'), dSellStyle: this.draftSideStyle(d.side === 'SELL', 'SELL'),
       onDExchange: (v) => this.onDraftExchange(v),
-      onDProduct: (v) => this.setDraft({ product: v }),
+      onDProduct: (v) => this.onDraftProduct(v),
       onDSymbol: (v) => this.onDraftSymbol(v),
       onDExpiry: (v) => this.setDraft({ expiry: v }),
       onDOptType: (v) => this.setDraft({ optionType: v }),
